@@ -1,0 +1,29 @@
+image:
+  repository: msamoueli/asapui
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  port: 80
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+# Requires Traefik (k3s default) or another ingress controller.
+# Add the host to /etc/hosts pointing to the cluster ingress IP.
+#
+# Example:
+#   helm upgrade asapui ./helm/asapui \
+#     --set ingress.enabled=true \
+#     --set ingress.host=asapui.localhost
+ingress:
+  enabled: false
+  className: "traefik"
+  host: asapui.localhost
+  annotations: {}
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"

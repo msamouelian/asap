@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: asapbackend-config
+  labels:
+    app: asapbackend
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  KEYCLOAK_URL:          {{ .Values.env.keycloakUrl | quote }}
+  KEYCLOAK_PUBLIC_URL:   {{ .Values.env.keycloakPublicUrl | quote }}
+  KEYCLOAK_REALM:        {{ .Values.env.keycloakRealm | quote }}
+  KEYCLOAK_CLIENT_ID:    {{ .Values.env.keycloakClientId | quote }}
+  OIDC_ROLE_CLAIM:       {{ .Values.env.oidcRoleClaim | quote }}
+  NEO4J_MCP_URL:         {{ .Values.env.neo4jMcpUrl | quote }}
+  INFERENCE_BASE_URL:             {{ .Values.env.inferenceBaseUrl | quote }}
+  INFERENCE_MODEL:                {{ .Values.env.inferenceModel | quote }}
+  INFERENCE_CONTEXT_WINDOW_TOKENS: {{ .Values.env.inferenceContextWindowTokens | quote }}
+  # Sampling knobs. min_p is a llama.cpp/vLLM extension the OpenAI API
+  # rejects — set 0 when pointing at api.openai.com. Temperature -1 omits
+  # the parameter entirely (OpenAI reasoning-class models reject it).
+  INFERENCE_MIN_P:                {{ .Values.env.inferenceMinP | quote }}
+  INFERENCE_TEMPERATURE:          {{ .Values.env.inferenceTemperature | quote }}
+  K8S_NAMESPACE:         {{ .Values.env.k8sNamespace | quote }}
+  EXTRACTOR_JOB_NAME:    {{ .Values.env.extractorJobName | quote }}

@@ -1,0 +1,69 @@
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  namespace: {{ .Release.Namespace }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+# HTTP ingress — redirects to HTTPS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: asapui-http
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Release.Namespace }}-redirect-to-https@kubernetescrd
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: asapui
+                port:
+                  number: {{ .Values.service.port }}
+---
+# HTTPS ingress — serves the app
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: asapui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: asapui
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: asap-tls
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: asapui
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

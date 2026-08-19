@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    meta.helm.sh/release-name: asapbackend
+    meta.helm.sh/release-namespace: asap
+  creationTimestamp: "2026-07-14T22:04:57Z"
+  generation: 1
+  labels:
+    app: asapbackend
+    app.kubernetes.io/managed-by: Helm
+    chart: asapbackend-0.1.0
+  name: asapbackend
+  namespace: asap
+  resourceVersion: "194789"
+  uid: c654f261-41ee-40c7-95c2-6da972aac890
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: asapbackend.localhost
+    http:
+      paths:
+      - backend:
+          service:
+            name: asapbackend
+            port:
+              number: 8001
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - asapbackend.localhost
+    secretName: asap-tls
+status:
+  loadBalancer:
+    ingress:
+    - ip: 172.20.0.3

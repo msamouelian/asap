@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: asap-keycloak-realm
+  labels:
+    app: keycloak
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  asap.json: |
+{{ .Files.Get "files/realm.json" | indent 4 }}

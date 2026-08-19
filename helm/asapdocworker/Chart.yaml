@@ -1,0 +1,6 @@
+apiVersion: v2
+name: asapdocworker
+description: ASAP document ingestion worker (docling) — suspended template Job cloned per upload by asapbackend
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

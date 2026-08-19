@@ -1,0 +1,44 @@
+image:
+  repository: msamoueli/asapdocworker
+  tag: "latest"
+  pullPolicy: Always
+
+secrets:
+  # Secret names created by the neo4j and postgres helm charts.
+  neo4jSecretName: neo4j-auth
+  postgresSecretName: postgres-auth
+
+embedding:
+  vllmBaseUrl: "http://vllm-embedding:8000/v1"
+  model: "BAAI/bge-small-en-v1.5"
+  batchSize: 64
+
+processing:
+  # Tokens per chunk — below the embedding model's 512-token window to leave
+  # room for the contextual prefix.
+  chunkMaxTokens: 384
+  # Parallel docling conversions. Modest on the shared dev node; raise on a
+  # dedicated/GPU node.
+  convertWorkers: 2
+
+staging:
+  # Shared upload staging volume: asapbackend writes uploads here, worker
+  # jobs read and then delete them. k3s local-path is ReadWriteOnce but this
+  # is a single-node cluster, so both pods can mount it. On a multi-node
+  # production cluster this must move to RWX storage or object storage.
+  pvcName: doc-uploads
+  size: 10Gi
+  storageClassName: local-path
+
+# Docling document conversion is CPU-bound. On a GPU cluster, add a GPU
+# resource request here to accelerate layout/OCR models.
+resources:
+  requests:
+    memory: "2Gi"
+    cpu: "1"
+  limits:
+    memory: "4Gi"
+    cpu: "3"
+
+# Keep finished job objects around briefly for debugging, then reap.
+ttlSecondsAfterFinished: 3600

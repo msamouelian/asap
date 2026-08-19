@@ -1,0 +1,30 @@
+image:
+  repository: postgres
+  tag: "17"
+  pullPolicy: IfNotPresent
+
+auth:
+  # Name of the Secret that stores all connection details.
+  # Other services should read postgres-user, postgres-password,
+  # and postgres-url from this Secret.
+  secretName: postgres-auth
+  # Provide user and password at install time via --set.
+  # Do not add values here — they must not be committed to source control.
+  user: ""
+  password: ""
+  # Default database — no need to change for the ASAP use case.
+  database: postgres
+
+persistence:
+  # Path inside the k3d server node container — mounted from the Mac host via
+  # the volumes section in k3d-config.yaml.
+  hostPath: /postgres-data
+  size: 10Gi
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "1000m"

@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+  labels:
+    app: neo4j
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  serviceName: graphdb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      # Neo4j Docker image runs as uid/gid 7474 (neo4j user).
+      # fsGroup ensures the mounted PVC is writable by that user.
+      # If the existing data directory was written by a different uid,
+      # you may need to chown it on the host before first boot.
+      securityContext:
+        runAsUser: 7474
+        runAsGroup: 7474
+        fsGroup: 7474
+        runAsNonRoot: true
+      containers:
+        - name: neo4j
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 7474
+            - name: bolt
+              containerPort: 7687
+          env:
+            # Read the full auth string (neo4j/<password>) directly from the
+            # Secret — avoids any intermediate NEO4J_-prefixed variable that
+            # Neo4j would misinterpret as a config setting.
+            - name: NEO4J_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.secretName }}
+                  key: neo4j-auth
+
+            # Plugins — downloaded from Neo4j plugin repository on first boot.
+            - name: NEO4J_PLUGINS
+              value: {{ .Values.plugins | toJson | quote }}
+
+            # Allow APOC, GDS, and GenAI procedures/functions to run without restriction.
+            # ai.* covers the current (non-deprecated) genai namespace: ai.text.embed, etc.
+            - name: NEO4J_dbms_security_procedures_unrestricted
+              value: "apoc.*,gds.*,genai.*,ai.*"
+            - name: NEO4J_dbms_security_procedures_allowlist
+              value: "apoc.*,gds.*,genai.*,ai.*"
+
+            # Do not send anonymous usage data to Neo4j.
+            - name: NEO4J_dbms_usage__report_enabled
+              value: "false"
+
+            # Advertise the ingress WebSocket host as the Bolt address so the
+            # Browser UI prefills a working connect URL (port 443 = Traefik TLS).
+            # In-cluster clients are unaffected: they use explicit bolt://
+            # URIs, which never consult the advertised address.
+            {{- if .Values.ingress.enabled }}
+            - name: NEO4J_server_bolt_advertised__address
+              value: "{{ .Values.ingress.host }}:443"
+            {{- end }}
+
+            # Memory settings — tuned for a local kind cluster.
+            - name: NEO4J_server_memory_heap_initial__size
+              value: "512m"
+            - name: NEO4J_server_memory_heap_max__size
+              value: "1g"
+            - name: NEO4J_server_memory_pagecache_size
+              value: "512m"
+
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            # GenAI plugin reads genai.conf directly from the Neo4j conf directory.
+            - name: genai-config
+              mountPath: /var/lib/neo4j/conf/genai.conf
+              subPath: genai.conf
+              readOnly: true
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory | quote }}
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+            limits:
+              memory: {{ .Values.resources.limits.memory | quote }}
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neo4j-pvc
+        - name: genai-config
+          configMap:
+            name: neo4j-genai-config

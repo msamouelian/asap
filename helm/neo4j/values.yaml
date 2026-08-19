@@ -1,0 +1,54 @@
+image:
+  repository: neo4j
+  tag: "2026.05.0-community"
+  pullPolicy: IfNotPresent
+
+auth:
+  # Name of the Kubernetes Secret that stores all Neo4j connection details.
+  # The extractor Job and any other service that needs to connect to
+  # Neo4j should reference this same secret.
+  secretName: neo4j-auth
+  # Bolt URI of the Neo4j service inside the cluster.
+  # "graphdb" is the service name used to avoid Kubernetes injecting NEO4J_* env vars.
+  uri: bolt://graphdb:7687
+  # Neo4j username.
+  user: neo4j
+  # Override this with a secure value before deploying to any shared environment.
+  password: "" #You must provide this at the command line with helm; do not add password here.
+
+# Plugins to install on startup. The Neo4j Docker image downloads these
+# automatically from the Neo4j plugin repository on first boot.
+plugins:
+  - apoc
+  - graph-data-science
+  - genai
+
+genai:
+  # Base URL of the OpenAI-compatible embedding server.
+  # The GenAI plugin appends /embeddings to this path — use the /v1 root, not the full path.
+  openaiBaseUrl: "http://vllm-embedding:8000/v1"
+
+
+persistence:
+  # Path inside the k3d server node container — mounted from the Mac host via
+  # the volumes section in k3d-config.yaml.
+  hostPath: /neo4j-data
+  size: 20Gi
+
+service: {}
+
+ingress:
+  enabled: false
+  className: traefik
+  host: neo4j.localhost
+  # Kubernetes TLS secret for HTTPS (shared ASAP cert; SANs include neo4j.localhost).
+  tlsSecret: asap-tls
+  annotations: {}
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "2000m"

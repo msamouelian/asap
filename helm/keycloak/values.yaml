@@ -1,0 +1,37 @@
+keycloak:
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.2.5"
+    pullPolicy: IfNotPresent
+
+  adminUser: admin
+  adminPassword: ""     # Required — pass via --set keycloak.adminPassword=
+  realm: asap
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+postgres:
+  image:
+    repository: docker.io/library/postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+
+  user: keycloak
+  database: keycloak
+  password: ""          # Required — pass via --set postgres.password=
+
+  persistence:
+    hostPath: /keycloak-data
+    size: 2Gi
+
+ingress:
+  enabled: false        # Enable via --set ingress.enabled=true
+  className: traefik
+  host: keycloak.localhost
+  annotations: {}

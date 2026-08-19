@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  # PVs are cluster-scoped — name must be unique across the cluster.
+  name: postgres-pv
+  labels:
+    app: postgres
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath:
+    # Path inside the kind node container, mapped from the Mac host via
+    # extraMounts in kind-config.yaml.
+    path: {{ .Values.persistence.hostPath | quote }}
+    type: DirectoryOrCreate

@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphdb-mcp
+  labels:
+    app: graphdb-mcp
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graphdb-mcp
+  template:
+    metadata:
+      labels:
+        app: graphdb-mcp
+    spec:
+      containers:
+        - name: graphdb-mcp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.port }}
+          env:
+            # Neo4j server URI — server-level config, always required.
+            - name: NEO4J_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-uri
+            - name: NEO4J_DATABASE
+              value: {{ .Values.neo4j.database | quote }}
+
+            # Read-only mode — prevents the LLM from issuing write queries.
+            - name: NEO4J_READ_ONLY
+              value: {{ .Values.neo4j.readOnly | quote }}
+
+            # In HTTP transport mode NEO4J_USERNAME and NEO4J_PASSWORD must NOT
+            # be set here. Credentials are provided per-request via Basic Auth
+            # by the caller (asapbackend reads them from the neo4j secret).
+            - name: NEO4J_TRANSPORT_MODE
+              value: "http"
+
+            # Override the default 127.0.0.1 so the pod is reachable from
+            # other pods inside the cluster.
+            - name: NEO4J_MCP_HTTP_HOST
+              value: "0.0.0.0"
+
+            - name: NEO4J_MCP_HTTP_PORT
+              value: {{ .Values.server.port | quote }}
+
+            # Allow the readiness/liveness probes to hit /ping without auth.
+            - name: NEO4J_HTTP_ALLOW_UNAUTHENTICATED_PING
+              value: "true"
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.server.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.server.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory | quote }}
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+            limits:
+              memory: {{ .Values.resources.limits.memory | quote }}
+              cpu: {{ .Values.resources.limits.cpu | quote }}

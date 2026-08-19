@@ -1,0 +1,32 @@
+image:
+  repository: msamoueli/kggenerator
+  tag: "latest"
+  pullPolicy: Always
+
+# Inference server (OpenAI-compatible). Defaults match the asapbackend chat
+# deployment: LM Studio on the k3d host. The API key is NOT set here — the
+# Job reads it from the asapbackend-secret (key inference-api-key), so both
+# services always share the token provided at asapbackend install time.
+inference:
+  baseUrl: http://host.k3d.internal:1234/v1
+  model: openai/gpt-oss-20b
+  apiKeySecretName: asapbackend-secret
+  apiKeySecretKey: inference-api-key
+
+# vLLM embedding server — same model as extraction so inferred-entity
+# vectors are comparable with note-chunk vectors in hybrid search.
+vllm:
+  baseUrl: http://vllm-embedding:8000/v1
+
+neo4j:
+  # Secret created by the neo4j chart: neo4j-uri, neo4j-user, neo4j-password.
+  secretName: neo4j-auth
+
+postgres:
+  # Secret created by the postgres chart: postgres-url is a full DSN.
+  secretName: postgres-auth
+
+# Re-extract every collection instead of skipping ones that already have
+# artifacts. Extraction is the expensive LLM phase (~hours at scale) —
+# leave false unless the extraction prompt or surface builder changed.
+force: false

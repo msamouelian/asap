@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphdb-mcp
+  labels:
+    app: graphdb-mcp
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  type: ClusterIP
+  selector:
+    app: graphdb-mcp
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.server.port }}

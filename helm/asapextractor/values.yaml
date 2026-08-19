@@ -1,0 +1,22 @@
+image:
+  repository: msamoueli/asapextractor
+  tag: "latest"
+  pullPolicy: Always
+
+aspace:
+  # Base URL of the ArchivesSpace REST API — not sensitive, safe to commit.
+  baseurl: 'https://arstaff.lib.harvard.edu/api'
+  # Provide username and password at install time via --set.
+  # Do not add values here — they must not be committed to source control.
+  username: ''
+  password: ''
+
+neo4j:
+  # Name of the Secret created by the neo4j helm chart.
+  # Must contain keys: neo4j-uri, neo4j-user, neo4j-password.
+  secretName: neo4j-auth
+
+# Wipe the entire Neo4j graph before each extraction run. The graph is
+# rebuilt from scratch (~1.5 h), during which the ASAP app has no data —
+# schedule runs in off hours. Set false only for development partial runs.
+wipeGraph: true

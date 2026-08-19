@@ -1,0 +1,6 @@
+apiVersion: v2
+name: asapextractor
+description: ASAP — ArchivesSpace → Neo4j extraction pipeline (runs as a Kubernetes Job)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

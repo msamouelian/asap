@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-nginx-config
+  labels:
+    app: vllm
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  # nginx reverse proxy that sits in front of vLLM and strips h2c upgrade headers.
+  # Java's HttpClient (used by Neo4j's GenAI plugin) sends Upgrade: h2c for all
+  # cleartext HTTP/2 connections. uvicorn (vLLM's ASGI server) drops the request
+  # body when it sees Upgrade: h2c, causing Pydantic validation to fail with an
+  # empty body error. nginx reads the full chunked request, strips the upgrade
+  # headers, and forwards a clean HTTP/1.1 request to vLLM.
+  nginx.conf: |
+    events {}
+    http {
+      server {
+        listen {{ .Values.service.port }};
+
+        location / {
+          proxy_pass http://127.0.0.1:{{ .Values.server.internalPort }};
+          proxy_http_version 1.1;
+
+          # Strip the hop-by-hop h2c upgrade headers injected by Java's HttpClient.
+          proxy_set_header Upgrade "";
+          proxy_set_header Connection "";
+
+          # Forward the actual request/response body without buffering to avoid
+          # memory pressure on large embedding batches.
+          proxy_buffering          off;
+          proxy_request_buffering  off;
+
+          # CPU inference can take several seconds per batch.
+          proxy_read_timeout    300s;
+          proxy_send_timeout    120s;
+          proxy_connect_timeout  10s;
+        }
+      }
+    }

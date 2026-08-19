@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asapbackend
+  labels:
+    app: asapbackend
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: asapbackend
+  template:
+    metadata:
+      labels:
+        app: asapbackend
+    spec:
+      # RBAC ServiceAccount grants permission to manage asapextractor Jobs.
+      serviceAccountName: asapbackend
+      containers:
+        - name: asapbackend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+
+          # Non-sensitive configuration from the ConfigMap.
+          envFrom:
+            - configMapRef:
+                name: asapbackend-config
+
+          env:
+            # Inference API key.
+            - name: INFERENCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: asapbackend-secret
+                  key: inference-api-key
+
+            # Database connection URL from the postgres chart's Secret.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgresSecretName }}
+                  key: postgres-url
+
+            # Direct Neo4j driver credentials — scoped to document-library
+            # writes in services/graph_docs.py (LLM Cypher stays on MCP).
+            - name: NEO4J_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-uri
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-user
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-password
+
+            # Neo4j MCP Basic Auth credentials from the neo4j chart's Secret.
+            - name: NEO4J_MCP_AUTH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-user
+            - name: NEO4J_MCP_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-password
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+
+          volumeMounts:
+            # Shared staging volume for document uploads: the backend writes
+            # multipart uploads under /uploads/<job_id>/ and asapdocworker
+            # jobs consume (then delete) them. PVC owned by the asapdocworker
+            # chart; single-node RWO sharing (see that chart's values.yaml).
+            - name: doc-uploads
+              mountPath: /uploads
+
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory | quote }}
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+            limits:
+              memory: {{ .Values.resources.limits.memory | quote }}
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+
+      volumes:
+        - name: doc-uploads
+          persistentVolumeClaim:
+            claimName: {{ .Values.docUploads.pvcName }}

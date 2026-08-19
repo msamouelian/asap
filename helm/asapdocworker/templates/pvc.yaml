@@ -1,0 +1,19 @@
+# Shared staging volume for document uploads. Written by asapbackend
+# (multipart uploads land under /uploads/<job_id>/), read and cleaned by
+# worker jobs. Dynamic local-path provisioning — survives pod restarts but
+# NOT cluster recreation; in-flight uploads are transient by design
+# (originals are not retained after processing).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.staging.pvcName }}
+  labels:
+    app: asapdocworker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.staging.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.staging.size }}

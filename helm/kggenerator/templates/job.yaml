@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kggenerator
+  labels:
+    app: kggenerator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  # Deployed suspended — asapbackend clones this Job via the Kubernetes API
+  # when an admin triggers "Generate Knowledge Graph" (same pattern as
+  # asapextractor). The kggenerator reads the extracted graph from Neo4j and
+  # writes ONLY :Inferred nodes; it never touches ArchivesSpace.
+  suspend: true
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: kggenerator
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kggenerator
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["all"]
+          envFrom:
+            - configMapRef:
+                name: kggenerator-config
+          env:
+            - name: NEO4J_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-uri
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-user
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-password
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.secretName }}
+                  key: postgres-url
+            - name: KG_INFERENCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.inference.apiKeySecretName }}
+                  key: {{ .Values.inference.apiKeySecretKey }}

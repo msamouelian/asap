@@ -1,0 +1,59 @@
+---
+# k3d cluster configuration for ASAP local development.
+# Replaces kind-config.yaml after migration from Kind to k3d.
+#
+# Create the cluster:
+#   k3d cluster create --config k3d-config.yaml
+#
+# The .localhost ingress hostnames resolve to 127.0.0.1 natively.
+#
+# Then install the helm charts:
+#   ./scripts/install-charts.sh \
+#     --neo4j-password '<password>' \
+#     --pg-user '<user>' --pg-password '<password>' \
+#     --aspace-user '<user>' --aspace-password '<password>' \
+#     --inference-api-key '<key>' \
+#     --inference-base-url 'http://host.k3d.internal:1234/v1' \
+#     --ingress-host asapbackend.localhost \
+#     --skip-ollama
+
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: asap
+
+servers: 1
+agents: 0
+
+ports:
+  # ── Traefik ingress (HTTP / HTTPS) ─────────────────────────────────────
+  # All application HTTP traffic (asapbackend, asapui) routes here.
+  # Traefik is included in k3s and handles host-based routing.
+  - port: "80:80"
+    nodeFilters:
+      - loadbalancer
+  - port: "443:443"
+    nodeFilters:
+      - loadbalancer
+
+
+volumes:
+  # Mac host paths mounted into the k3d server node container.
+  # The helm charts reference the right-hand (container-side) paths via
+  # hostPath PersistentVolumes.  Data survives cluster recreation because
+  # it lives on the Mac filesystem, not inside the ephemeral container.
+  - volume: /Users/msamouelian/neo4j/data:/neo4j-data
+    nodeFilters:
+      - server:0
+  - volume: /Users/msamouelian/postgres/data:/postgres-data
+    nodeFilters:
+      - server:0
+  - volume: /Users/msamouelian/ollama/data:/ollama-data
+    nodeFilters:
+      - server:0
+  - volume: /Users/msamouelian/vllm/data:/vllm-data
+    nodeFilters:
+      - server:0
+  - volume: /Users/msamouelian/keycloak/data:/keycloak-data
+    nodeFilters:
+      - server:0

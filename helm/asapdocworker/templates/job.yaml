@@ -1,0 +1,80 @@
+# Suspended template Job — never runs itself. asapbackend clones its pod
+# spec per upload (injecting JOB_ID), exactly like the asapextractor
+# trigger pattern, so every run uses the helm-deployed configuration.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: asapdocworker
+  labels:
+    app: asapdocworker
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  suspend: true
+  # A failed ingestion cleans up after itself and requires a fresh upload —
+  # retrying the same pod would find the staging files already deleted.
+  backoffLimit: 0
+  ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        app: asapdocworker
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: asapdocworker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # JOB_ID is injected by asapbackend when cloning this template.
+            - name: UPLOAD_ROOT
+              value: /uploads
+            # Models are pre-baked into the image; forbid runtime HF traffic
+            # so jobs are hermetic (and fast to start).
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: TRANSFORMERS_OFFLINE
+              value: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.postgresSecretName }}
+                  key: postgres-url
+            - name: NEO4J_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-uri
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-user
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.neo4jSecretName }}
+                  key: neo4j-password
+            - name: VLLM_BASE_URL
+              value: {{ .Values.embedding.vllmBaseUrl | quote }}
+            - name: EMBEDDING_MODEL
+              value: {{ .Values.embedding.model | quote }}
+            - name: EMBEDDING_BATCH_SIZE
+              value: {{ .Values.embedding.batchSize | quote }}
+            - name: CHUNK_MAX_TOKENS
+              value: {{ .Values.processing.chunkMaxTokens | quote }}
+            - name: CONVERT_WORKERS
+              value: {{ .Values.processing.convertWorkers | quote }}
+          volumeMounts:
+            - name: uploads
+              mountPath: /uploads
+          resources:
+            requests:
+              memory: {{ .Values.resources.requests.memory | quote }}
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+            limits:
+              memory: {{ .Values.resources.limits.memory | quote }}
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ .Values.staging.pvcName }}

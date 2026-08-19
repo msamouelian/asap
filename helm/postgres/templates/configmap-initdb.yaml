@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  labels:
+    app: postgres
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  # Postgres runs all files in /docker-entrypoint-initdb.d/ exactly once,
+  # only when the data directory is empty (fresh PersistentVolume).
+  00-init.sql: |
+{{ .Files.Get "files/init.sql" | indent 4 }}

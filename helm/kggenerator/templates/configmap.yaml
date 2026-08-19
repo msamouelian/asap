@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kggenerator-config
+  labels:
+    app: kggenerator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  KG_INFERENCE_BASE_URL: {{ .Values.inference.baseUrl | quote }}
+  KG_INFERENCE_MODEL: {{ .Values.inference.model | quote }}
+  VLLM_BASE_URL: {{ .Values.vllm.baseUrl | quote }}
+  # Re-extract collections that already have artifacts (expensive).
+  KG_FORCE: {{ .Values.force | default false | quote }}

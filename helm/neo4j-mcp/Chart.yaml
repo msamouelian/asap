@@ -1,0 +1,6 @@
+apiVersion: v2
+name: neo4j-mcp
+description: Neo4j MCP server — exposes Neo4j graph tools to the ASAP backend via Streamable HTTP
+type: application
+version: 0.1.0
+appVersion: "latest"

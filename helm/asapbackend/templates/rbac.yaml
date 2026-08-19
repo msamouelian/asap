@@ -1,0 +1,41 @@
+# ServiceAccount used by the asapbackend pod. The Role below grants it the
+# minimum permissions needed to manage asapextractor Jobs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: asapbackend
+  labels:
+    app: asapbackend
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+---
+# Namespaced Role — grants job management only within the asap namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: asapbackend-job-manager
+  labels:
+    app: asapbackend
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs/status"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: asapbackend-job-manager
+  labels:
+    app: asapbackend
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+subjects:
+  - kind: ServiceAccount
+    name: asapbackend
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: asapbackend-job-manager

@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: asapextractor
+  labels:
+    app: asapextractor
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  # Deployed suspended — asapbackend unsuspends (first run) or deletes+recreates
+  # (subsequent runs) this Job via the Kubernetes API.
+  suspend: true
+  # Automatically remove the Job 1 hour after it finishes so the cluster
+  # doesn't accumulate stale Job objects.
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: asapextractor
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: asapextractor
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Non-secret settings from the ConfigMap.
+          envFrom:
+            - configMapRef:
+                name: asapextractor-config
+          # Neo4j connection details from the neo4j chart's Secret.
+          env:
+            - name: NEO4J_URI
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-uri
+            - name: NEO4J_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-user
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.secretName }}
+                  key: neo4j-password
+          volumeMounts:
+            - name: asnake-config
+              mountPath: /etc/asnake
+              readOnly: true
+      volumes:
+        - name: asnake-config
+          secret:
+            secretName: archivesspace-secret

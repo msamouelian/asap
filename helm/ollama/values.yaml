@@ -1,0 +1,29 @@
+image:
+  repository: ollama/ollama
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Model to pull on first startup. Must support tool calling.
+model:
+  name: llama3.1:8b
+
+persistence:
+  # Path inside the k3d server node container — mounted from the Mac host via
+  # the volumes section in k3d-config.yaml. Models are cached here so they
+  # survive pod restarts without re-downloading.
+  hostPath: /ollama-data
+  size: 20Gi
+
+# Ollama listens on 11434 and exposes an OpenAI-compatible API at /v1/.
+service:
+  port: 11434
+
+# CPU inference for llama3.1:8b requires roughly 5 GB for weights plus
+# headroom for the KV cache.
+resources:
+  requests:
+    memory: "6Gi"
+    cpu: "2"
+  limits:
+    memory: "8Gi"
+    cpu: "4"

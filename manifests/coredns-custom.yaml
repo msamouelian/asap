@@ -1,0 +1,28 @@
+---
+# Restores host.k3d.internal DNS resolution inside the cluster.
+#
+# k3d injects "host.k3d.internal -> <docker host gateway>" into CoreDNS's
+# NodeHosts file at cluster creation, but the k3s addon controller
+# periodically rewrites the coredns ConfigMap and wipes the entry. Pods
+# (e.g. asapbackend calling LM Studio on the Mac) then fail with
+# "Name or service not known".
+#
+# This user-owned ConfigMap survives addon rewrites: the k3s Corefile
+# ends with `import /etc/coredns/custom/*.server`, and the coredns
+# Deployment mounts this ConfigMap (optional) at /etc/coredns/custom.
+#
+# 192.168.65.254 is Docker Desktop's stable host-gateway IP on macOS —
+# it always routes to the Mac host regardless of the Mac's LAN/VPN address.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  host-k3d-internal.server: |
+    host.k3d.internal:53 {
+      hosts {
+        192.168.65.254 host.k3d.internal
+        fallthrough
+      }
+    }

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+# Legacy dev-auth fixture (pre-Keycloak). Nothing reads it anymore, but it
+# holds plaintext passwords — never commit it.
+dev-users.yaml
+
+# Node / Svelte (asapui)
+node_modules/
+.svelte-kit/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+.tls/
+.pytest_cache/

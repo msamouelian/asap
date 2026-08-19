@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kggenerator
+description: ASAP — automated knowledge graph generation from the extracted archival graph (runs as a Kubernetes Job)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: asapextractor-config
+  labels:
+    app: asapextractor
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  # Path where the archivesspace-secret volume is mounted in the pod.
+  # ArchivesSnake reads this env var to locate its configuration file.
+  ASNAKE_CONFIG_FILE: /etc/asnake/archivessnake.yml
+
+  # ArchivesSpace repository and pagination settings.
+  ASPACE_REPO_ID: "11"
+  ASPACE_PAGE_SIZE: "100"
+
+  # Wipe the Neo4j graph before extraction so deleted ArchivesSpace records
+  # don't linger as stale nodes. The ASAP app is unavailable during the run.
+  WIPE_GRAPH: {{ .Values.wipeGraph | default true | quote }}

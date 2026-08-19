@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neo4j-genai-config
+  labels:
+    app: neo4j
+data:
+  # GenAIConfig reads this file directly — it does not use Neo4j's config system
+  # or NEO4J_* environment variables. The plugin looks for genai.conf in the
+  # Neo4j conf directory ($NEO4J_CONF, typically /var/lib/neo4j/conf/).
+  genai.conf: |
+    genai.openai.baseurl={{ .Values.genai.openaiBaseUrl }}

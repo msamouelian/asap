@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  # PVs are cluster-scoped — name must be unique across the cluster.
+  name: neo4j-pv
+  labels:
+    app: neo4j
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  # Empty string disables the default StorageClass so this PV is only
+  # consumed by an explicit PVC with storageClassName: "".
+  storageClassName: ""
+  hostPath:
+    # Path inside the kind node container, mapped from the Mac host via
+    # extraMounts in kind-config.yaml.
+    path: {{ .Values.persistence.hostPath | quote }}
+    type: DirectoryOrCreate

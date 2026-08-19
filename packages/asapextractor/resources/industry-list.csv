@@ -1,0 +1,811 @@
+code,label
+1,Agriculture industries; farming
+101,Field crops
+102,Forage crops
+103,Grasses
+104,Legumes (for forage, including Alfalfa)
+105,Stover and fodder
+11,Cereals
+111,Wheat
+112,Corn
+113,Oats
+114,Rice
+115,Other cereals
+116,Sugar crops (see also :21)
+117,Cane
+118,Beet and other
+119,Potato
+12,Fiber crops
+121,Cotton
+122,Flax
+123,Hemp
+124,Other fiber crops
+125,Tobacco
+126,Tea
+127,Coffee
+128,Cacao
+129,Other field crops
+13,Truck farming
+131,Vegetables (except potato)
+131A2,Artichoke
+131A4,Asparagus
+131B2,Beans
+131B4,Beets
+131B6,Brussels sprouts
+131C1,Cabbage
+131C2,Carrot
+131C3,Cauliflower
+131C4,Celery
+131C5,Chard, Swiss
+131C6,Corn, Sweet
+131C7,Cucumber
+131E2,Eggplant
+131E4,Endive
+131E6,Escarole
+131F2,Fennel
+131H3,Horseradish
+131K2,Kale
+131K6,Kohl-rabi
+131L2,Lettuce
+131M2,Melon
+131M6,Mushroom
+131M8,Mustard (Vegetable)
+131O3,Onion
+131P2,Parsley
+131P3,Parsnip
+131P5,Pea
+131P6,Peanut
+131P7,Peppers
+131P9,Pumpkin
+131R2,Radish
+131R4,Rhubarb
+131S2,Sorrel
+131S4,Spinach
+131S6,Squash
+131S8,Sweet potato
+131T6,Tomato
+131T8,Turnip
+132,Small fruits. Berries
+132B5,Blackberry
+132B7,Blueberry
+132C5,Cranberry
+132C7,Currants
+132G5,Gooseberry
+132G7,Grape
+132H8,Huckleberry
+132L7,Logan blackberry
+132R2,Raspberry
+132S6,Strawberry
+133,Medicinal and savory herbs
+134,Seed growing and seedlings
+135,Flowers and ornamental plants
+136,Perfume plants
+137,Nursery industry (including forest trees)
+14,Orchard industry
+141,Pome fruits
+141A2,Apple
+141C5,Crabapple
+141P2,Pear
+141Q5,Quince
+142,Stone fruits
+142A2,Apricot
+142C5,Cherry
+142P3,Peach
+142P5,Plum
+143,Citrus fruits
+143G5,Grapefruit
+143L2,Lemon
+143L4,Lime
+143O5,Orange
+143P5,Pomelo
+144,Non-citrus subtropical fruits
+144A8,Avocado
+144D2,Date
+144F3,Fig
+144O3,Olive
+144P2,Persimmons (Japanese)
+144P4,Pineapple
+144P6,Pomegranate
+145,Tropical fruits
+145B2,Banana
+146,Nuts
+146A4,Almond
+146B8,Butternut
+146C3,Chestnut
+146F3,Filbert
+146H3,Hickory nut
+146P2,Pecan
+146W2,Walnut
+147,Spices
+148,Plantation rubber
+15,Animal industry (including breeding)
+151,Beef cattle
+152,Dairy cattle (for dairy products, see :414)
+154,Swine
+155,Sheep
+1552,Wool growing
+1554,Goats
+156,Draft animals
+157,Fur-bearing animals (see also :253)
+158,Pets
+159,Other animals
+16,Bird industry. Aviculture
+161,Poultry
+162,Egg raising
+163,Pet birds
+164,Domesticated wild birds
+165,Feather farming
+169,Other
+17,Insect industries
+171,Bee keeping
+173,Silkworm growing. Silk raising
+175,Other
+177,Reptile industries
+2,Forest industries
+201,Logging and auxiliary industries
+202,Logs, poles, and piling. Ties, Mine timber (see also :47)
+203,Firewood
+204,Extraction of potash. Wood ashes
+205,Turpentine and rosin
+206,Other gums
+207,Bark gathering
+21,Maple sugar
+22,Rubber gathering. Gutta-percha (see also :148)
+23,Forest management. Reforestation
+24,Marine industries
+25,Fishing and allied industries
+251,Fishing
+252,Whaling
+253,Sealing (see also :157)
+254,Sponge industry
+26,Shellfish industries
+263,Lobster, crab, and shrimp
+266,Pearl fisheries
+27,Seaweed industries
+28,Fish hatching
+29,Other marine industries
+3,Mining industries (including metallurgy)
+301,Iron and steel (including scrap iron and steel)
+302,Iron ore mining
+303,Electrolytic iron. Gas-reduced iron
+304,Charcoal iron
+305,Blast furnace. Pig iron
+306,Steel
+307,Alloy irons and steels
+31,Non-ferrous mining and metallurgy
+311,Precious metals
+312,Gold
+313,Placer mining (general)
+314,Ore mining
+315,Metallurgy
+316,Silver
+317,Platinum metals
+32,Copper
+321,Mining of ore
+322,Smelting
+323,Electrolytic copper. Refining
+33,Lead
+332,Zinc
+333,Nickel and cobalt
+334,Tin
+335,Aluminum
+337,Other metals
+34,Non-ferrous alloys
+341,Brass
+342,Bronze
+343,Pewter
+344,Solder
+345,Type metal
+347,Aluminum alloys
+349,Other
+35,Fuels mining
+351,Coal mining and preparation
+353,Bituminous. Semi-bituminous. Lignite
+354,Coke manufacture
+355,Briquets
+356,Anthracite
+359,Hydrocarbon fuels and minerals
+36,Petroleum
+361,Natural gas
+364,Asphaltic minerals
+37,Other non-metal mining
+371,Phosphate rock
+372,Salt and potash salts. Mineral water
+373,Sulfur
+374,Borax. Nitrates
+375,Precious and semiprecious stones
+376,Asbestos. Mica. Feldspar. Talc
+377,Graphite
+378,Aluminum minerals
+379,Other
+38,Quarrying
+381,Stone
+382,Limestone and marble
+383,Granite and trap-rock
+384,Sandstone. Grindstones
+385,Slate
+386,Other stones
+387,Sand and gravel
+388,Clay
+389,Other
+39,Power industries
+391,Animal power
+392,Wind power
+393,Water power
+394,Vapor power. Steam power
+395,Explosive engine power
+396,Electrical  power generation
+397,Mechanical power transmission
+398,Electrical power transmission
+4,Manufacturing industries
+401,Animal products (non-edible)
+402,Hides and skins
+403,Leather, tanning (see also :64 and sequence)
+404,Fur, hair, and feathers
+405,Bone industries. Ivory. Shell
+406,Glue and gelatin
+407,Fish products (non-edible) (for fats and oils, see :624)
+41,Foods (animal and vegetable, including frozen foods)
+411,Animal products (foods)
+412,Fresh meat. Packing industry
+4121,Dried, smoked, salted, canned meat
+413,Meat extracts. Bouillons. Soups
+414,Dairy products
+415,Milk and cream
+4152,Butter and cheese
+416,Ice cream
+417,Evaporated milk, casein, etc.
+418,Fish and fish products (edible)
+419,Other animal foods
+42,Vegetable products (foods)
+421,Flour and cereal foods. Starches
+422,Cereal feed stuffs. By-products of milling
+423,Bakery products
+424,Sugar and syrups
+425,Confectionery. Candy (for chocolate as a beverage see :435)
+426,Canned, dried, and preserved fruits and vegetables
+427,Spices and condiments
+428,Oils. Salad dressings (see also :624)
+429,Other vegetable products (foods)
+43,Vegetable products (beverages)
+431,Brewing and brewing products. Yeast
+432,Distilled beverages
+433,Fruit juices. Cordials and syrups. Wine
+434,Aerated soft drinks
+435,Coffee. Tea. Cocoa. Chocolate
+436,Tobacco products
+437,Cigarettes
+438,Cigars
+439,Snuff. Smoking and chewing tobacco
+44,Textiles
+441,Fiber preparation (cotton ginning, flax retting, etc.)
+442,Cotton yarns and cloth
+443,Flax yarns and cloth. Linen
+444,Silk yarns and cloth
+4441,Spun silk yarns and cloth
+445,Rayon yarns and cloth
+446,Wool yarns and cloth (woolen and worsted)
+4461,Shoddy manufacture
+447,Other fibers, spinning and weaving
+448,Coating, impregnating, and dyeing textiles    Finishing (bleaching, printing)
+449,Other
+45,Clothing manufacturing
+451,Men's
+452,Women's
+453,Children's
+454,Underwear and hosiery. Knit goods. Gloves (knitted)
+455,Headwear. Millinery
+456,Accessories and furnishings (including buttons)
+457,Furs
+459,Other
+46,Miscellaneous textile manufacturing
+461,Floor coverings
+462,Upholstery and tapestry
+463,Thread and cordage
+464,Lace. Embroideries. Narrow fabrics. Netting
+465,Tents and awnings. Sails. Flags
+466,Bags and bagging
+467,Other woven goods
+468,Felt industries. Mattresses. Pillows
+469,Other textile manufactures
+47,Wood products, elemental. Millwork (see also :202)
+471,Sash, door, and millwork
+472,Portable buildings
+473,Veneers
+474,Cooperage
+475,Boxes and other containers
+476,Carved products
+477,Cork products
+478,Patterns
+479,Other wood products
+48,Wood products, assembled
+481,Furniture
+482,Vehicles
+483,Ships and boats (see also :55)
+484,Agricultural implements (wooden)
+485,Woodenware and novelties
+486,Trunks and chests. Caskets
+487,Basketry. Rattan and willow ware
+488,Other wood products
+489,Pulp wood. Ground wood. Paper pulp
+49,Paper and paper products
+491,Newsprint
+492,Book and writing paper. Tissue paper
+493,Kraft and wrapping paper
+494,Paper board. Building board. Roofing board
+495,Coated paper. Wall paper
+496,Paper boxes and containers
+497,Envelopes and stationery. Paper bags
+498,Paper patterns. Paper novelties
+499,Other paper products
+5,Metal manufacturing industries (for metallurgy, see :3 and sequence)
+501,Foundry. Metal castings
+502,Rolling
+503,Plate and sheet. Bars and rods
+504,Rails. Structural shapes
+505,Forging. Stamping. Welding
+506,Wire drawing. Extrusion
+507,Machining. Machine shops
+508,Plating. Coating. Enameling (see also :597)
+509,Other
+51,Power machinery manufacturing (including parts) and repair
+511,Wind power
+512,Water power
+514,Steam power (stationary) (for locomotive, see :5412)
+516,Explosive engines. Diesel motors
+517,Airplane engines
+518,Automobile engines
+519,Marine engines
+52,Miscellaneous machinery manufacturing and repair (including parts)
+521,Metal working (including machine tools)
+522,Ordnance (heavy) (see also :592 and :627)
+523,Woodworking
+524,Mining and excavating (see also :547)
+525,Agricultural. Food preparation
+526,Textile and clothing. Shoe manufacturing machinery
+527,Heating, cooling, and ventilating apparatus. Gas and oil burners
+528,Pumps & pumping machinery
+529,Other machinery manufacture (including printing and graphic arts equipment)
+53,Land transportation equipment manufacturing and repair
+531,Road vehicles (except motor driven and bicycles)
+532,Bicycles
+533,Automotive vehicles manufacturing and repair
+534,Passenger cars. Automobiles
+535,Motor trucks
+536,Taxicabs. Buses
+5365,Motorcycles
+537,Tractors
+538,Automobile parts
+539,Automobile accessories (horns, shock absorbers, etc.)
+5391,Trailers
+54,Railroad equipment manufacturing and repair
+541,Motive power. Locomotives
+5412,Steam
+5414,Gasoline. Diesel
+5416,Electric. Gasoline electric
+5418,Compressed air and gases. Steam storage
+5419,Other
+542,Rolling stock
+5422,Passenger cars
+5423,Special types (dining, sleeping, parlor)
+5425,Freight cars
+5426,Special types (tanks, refrigerator, dump)
+5427,Work cars. Wrecking equipment
+5428,Car lighting and heating equipment
+5429,Other
+543,Roadway equipment
+5432,Track (rails, ties, switches)
+5433,Track laying and maintenance equipment
+5434,Safety equipment
+5435,Signals
+5436,Track protection (gates, fences, cattle guards)
+5439,Other
+544,Electric railway equipment manufacturing and repair
+5442,Current distribution apparatus
+5444,Overhead. Trolley. Catenary
+5446,Third rail
+5449,Other
+545,Electric railway motor cards (see also :5416)
+547,Handling machinery manufacturing and repair
+5472,Derricks. Cranes
+5474,Elevators. Hoists
+5476,Vessel unloading machinery
+5479,Other
+548,Conveying machinery
+5482,Overhead conveyors. Telpherage
+5484,Cableways. Cable tramways
+5485,Continuous conveyors
+5487,Car dumping
+5489,Other
+549,Other land transportation equipment
+55,Water transportation equipment manufacturing and repair (see also :483)
+551,Passenger vessels (power)
+552,Ocean vessels
+553,River, canal, and lake vessels
+554,Pleasure vessels. Motorboats. Yachts. Canoes. Rowboats. House boats
+555,Freight vessels (power)
+556,Vessels for special purposes (power)
+557,Sailing vessels
+558,Vessels without power (barges, floats, floating docks)
+559,Other marine transportation equipment
+56,Air transportation equipment manufacturing and repair
+561,Airplanes. Hydroplanes
+562,Dirigibles
+563,Filling and mooring apparatus
+564,Hangars. Mooring masts
+565,Landing and launching equipment
+566,Safety and signaling apparatus
+569,Other air equipment
+57,Electrical power generation and transmission equipment manufacturing and repair
+571,Generators
+572,Transformers. Converters (see also :5442 and :5444)
+573,Transmission and distribution equipment (see also :5442)
+5732,Line materials (see also :506 and :596)
+5734,Control apparatus
+574,Meters. Current measurement apparatus
+576,Batteries. Chemical current generation and storage
+579,Other power apparatus
+58,Electrical light and power appliances
+581,Electric lighting equipment. Lighting fixtures. Lamps
+582,Heaters and heating equipment (including driers, sun lamps)
+583,Telephone and telegraph equipment
+584,Radio equipment (receiving & broadcasting, sound and television)
+586,Household electrical appliances (including laundry equipment, refrigerator)
+587,Motors (including food mixers, fans) (see also :5416 and :544)
+588,Electro-chemical apparatus (see also :508)
+589,Other
+59,Specialized metal manufacturing
+591,Tools and hardware. Cutlery (for machine tools, see :521)
+592,Firearms and ammunition. Small arms
+593,Sheet metal ware. Plated and coated ware
+594,Builders' hardware and fixtures. Ornamental ironwork
+595,Plumbers' supplies. Pipe and fittings
+596,Wire manufactures (including insulated)
+597,Jewelers' ware. Gold and silver plating
+598,Watches and clocks. Precision instruments (see also :658)
+599,Other
+6,None-metallic mineral manufacturing
+601,Stone industries
+602,Abrasives
+603,Lime. Cement and plaster. Concrete
+604,Clay industries. Bricks. Refractories
+605,Pottery and chinaware. Tiles
+606,Glass and glassware
+608,Precious and semiprecious stones
+609,Other
+61,Manufacture of chemicals (for metallurgy, see :3)
+611,Inorganic ("heavy") chemicals
+6112,Acids
+6113,Sulfuric
+6114,Hydrochloric
+6115,Nitric
+6119,Other
+612,Alkalis and alkaline salts
+6121,Ammonia and its compounds
+6122,Soda and its compounds. Salt
+6123,Potash and its compounds
+6124,Other
+6125,Alkaline earths and their compounds
+6126,Bleaching powder. Calcium carbide (for limes, see :603)
+6127,Magnesia and its compounds
+6129,Other
+613,Inorganic gases - compressed and liquified
+6131,Chlorine (see also :6126)
+6133,Oxygen
+6134,Hydrogen
+6135,Sulfur dioxide
+6136,Carbon dioxide (including dry ice)
+6139,Other
+614,Other inorganic chemicals
+616,Organic chemicals
+6162,Organic acids
+6163,Acetic
+6165,Other
+6166,Alcohols
+6167,Ethyl
+6169,Other
+617,Aldehydes
+6172,Ketones
+6174,Ethers
+6176,Esters
+6178,Hydrocarbon chlorides
+618,Coal tar derivatives
+6181,Distillates. Crudes
+6182,Intermediates
+6183,Dyes. Colors. Medicinals (synthetic)
+6184,Photographic developers
+6185,Other derivatives
+6186,Hydrocarbon gases (except illuminating gas)
+619,Other
+62,Chemical manufacturing
+621,Fertilizers
+6212,Nitrogenous (for ammonia, see :6121)
+6213,Natural
+6214,Synthetic
+6215,Phosphatic. Superphosphates
+6216,Potash (see also :6213)
+6217,Natural
+6218,Recovered
+6219,Other
+622,Paints. Stains. Enamels. Varnishes. Lacquers. Inks
+624,Fats and oils. Soap. Glycerine
+6243,Medicines and drugs. Pharmaceuticals (see also :6183)
+6246,Perfumery. Cosmetics. Toilet preparations
+625,Cellulose products
+6252,Collodion and liquid preparations
+6254,Nitrocellulose
+6255,Plastics
+6257,Celluloid. Photographic film
+6259,Other
+627,Explosives. Fireworks
+6273,Matches
+6274,Wood distillation
+6275,Coal distillation (see also :618)
+6277,Illuminating gas (including water gas)
+6278,By-products
+628,Petroleum distillation
+629,Other chemical industries including cleaning (preparations other than soap)
+63,Rubber products manufacturing
+631,Latex
+632,Crude rubber preparation. Vulcanization
+633,Tires and inner tubes
+634,Rubberized fabrics. Belting. Hose
+635,Rubber clothing and footwear
+636,"Hard rubber" goods
+637,Druggists and stationers' goods
+638,Rubber reclamation. Substitutes
+639,Other rubber manufacture
+64,Leather manufacturing
+641,Boots and shoes. Shoe findings
+643,Harness and saddle
+644,Leather belting
+645,Luggage
+646,Gloves (leather)
+648,Novelties
+649,Other leather manufactures
+65,Mixed manufacturing
+651,Equipment for amusements and sports
+6512,Toys. Children's games. Dolls. Playing cards
+652,Sporting and athletic goods
+6522,Regalia. Emblems. Uniforms. Costumes
+653,Theatrical equipment
+654,Moving and talking picture equipment
+655,Musical instruments
+656,Phonographs and records
+657,Household equipment
+6574,Mirrors and picture frames
+658,Scientific instruments (see also :598)
+6582,Medical and dental
+6584,Photographic instruments and supplies
+6586,Optical instruments
+6587,Laboratory apparatus
+6588,Scales and weights
+659,Store and office equipment
+6592,Calculating machines
+6594,Typewriting machines
+6596,Office supplies
+6598,Showcases and furniture
+66,Personal articles
+661,Umbrellas and parasoles. Canes
+662,Notions (not classified elsewhere)
+663,Toilet articles and instruments
+664,Fire extinguishing apparatus. Safety apparatus
+665,Signs. Stencils. Seals and brands
+669,Other miscellaneous manufactures (including fountain pens, artificial flowers)
+68,Printing and publishing
+681,Newspaper
+682,Periodical
+683,Books and music
+684,Job printing
+685,Illustration services
+686,Engraving. Lithography and other reproduction processes
+687,Bookbinding
+689,Other branches of printing and publishing
+69,Recreation industries. Amusements
+691,Theater
+692,Moving and talking pictures
+693,Athletic games and contests
+694,Music. Concerts. Opera
+696,Camping. Hunting. Angling
+697,Amusement parks. Fairs. Circuses
+698,Travel. Touring. RIding and driving
+699,Other recreation industries
+7,Engineering construction and other auxiliary business services
+701,Roads, streets, and pavements
+702,Water supply. Filtration. Irrigation and drainage
+703,Sewers and sanitation
+704,Bridges. Tunnels
+705,Railways, steam, and electric (including terminals)
+706,Docks and wharves. River, canal, and harbor
+707,Airports. Airdromes
+708,Consulting services (including chemists) (see also :867)
+709,Other engineering services (electricity, gas, steam, etc.)
+71,Building construction
+711,Foundation. Excavation
+712,Steel frame construction. Concrete. Roofing
+713,Masonry and brick. Tile setting
+714,Carpentry and woodwork. Partitions
+715,Plastering and papering. Painting
+716,Plumbing and pipe fitting. Heating, cooling, and ventilating (see also :527)
+717,Lighting. Service appliances
+718,Other building construction
+719,Wrecking. Removal. Moving
+72,Transportation services (land, water, air)
+721,Land transportation services
+7211,Road passenger services. Bus service
+722,Taxicab service
+723,Road freight services. Truck
+724,Steam railroad
+725,Electric railroad (including street railways, subways)
+726,Pipe line transportation
+727,Express. Postal service. Forwarders
+728,Terminal facilities
+729,Other land transportation services
+73,Water transportation services
+731,Inland. Rivers, canals, lakes. Ferries
+732,Coastwise
+733,Ocean
+734,Wharves and docks. Terminals
+7345,Navigation protection
+7346,Pilotage
+7349,Other
+736,Air transportation services
+737,Airports
+738,Air navigation protection
+74,Communication services
+742,Telegraph and cable
+743,Telephone
+744,Messenger
+745,Radio and television
+749,Other communication services (ticker, signaling, etc.)
+75,Commodity services. Public utilities
+751,Gas, natural and manufactured
+752,Electric current for light and power
+753,Water (domestic, irrigation)
+754,Ice. Refrigeration
+755,Heat. Steam
+756,Fuel. Gasoline. Oil
+759,Miscellaneous commodity services
+76,Marketing services
+761,Wholesale. Jobbing
+762,Warehousing. Cold storage
+7625,Traveling salesmen
+7635,Packing & packaging
+764,Public markets. Auctions. Produce exchanges
+765,Purchasing services
+766,Foreign marketing. Exporting and importing
+7664,Smuggling. Slave trade. Rum running
+767,Advertising
+7675,Outdoor
+768,Real estate business
+769,Other marketing services
+77,Retail selling
+771,Unit stores
+7711,Automobiles
+772,Food (groceries, meat markets, fish markets)
+773,Clothing (shoe stores, hat stores, jewelry)
+774,Household supplies (drugs, hardware, books)
+775,Chain stores
+776,Department stores
+777,Mail-order houses
+778,House-to-house
+779,Vending machines
+78,Financial services
+781,Banks. Trust companies
+782,Savings banks. Building and loan associations
+7821,Safety deposit
+783,Investment banking. Investment trust
+784,Other investment services
+7845,Lotteries
+785,Stock exchange. Stock brokers
+786,Note brokers. Commercial paper companies
+787,Personal loans. Pawnbrokers
+788,Instalment finance
+789,Other financial services
+79,Business and financial intelligence
+791,Credit information
+792,Forecasting agencies. Information collectors on general business conditions
+793,Specialized collectors of business data
+794,Public accountant
+796,Insurance
+797,Life and accident
+798,Property
+799,Surety. Bonding
+8,Professional services, occupations, and institutions
+81,Managerial and executive
+811,Office and clerical
+812,Bookkeeping
+814,Clerical (filing, etc.)
+816,Correspondence. Stenographers
+818,Office care and service
+819,Public relations
+82,Religious
+821,Clergymen, priests, nuns, etc.
+822,Churches, monasteries, etc.
+83,Legal
+831,Lawyers
+84,Medical and allied
+841,Doctors, surgeons, etc.
+842,Nurses
+843,Dentists
+844,Oculists, opticians, etc.
+845,Pharmacists
+846,Hospitals, clinics, etc. (see also :933)
+847,Morticians
+848,Other
+85,Literary and aesthetic
+851,Authors
+852,Journalists. Editors
+853,Lectures
+854,Libraries
+856,Artists, sculptors, etc.
+857,Architects. Landscape architects. Interior decorators
+858,Industrial artists, designers, photographers, etc.
+859,Other
+86,Educational and scientific (see also :931)
+861,Teachers in kindergarten, primary, and secondary schools
+862,Primary and secondary schools
+863,College teachers
+864,College and universities. Technical and advanced school
+865,Special schools (correspondence, extension, etc., chautauquas)
+867,Engineers. Inventors. Consultants
+868,Museums
+869,Other
+87,Personal service occupations
+871,Industrial (blacksmiths, repair carpenters, automobile mechanics, plumbers, electricians. upholsterers, laborers, etc.)
+872,Personal and domestic (house and personal servants)
+873,Food and shelter (hotels, restaurants, caterers, apartment house administration, etc.)
+874,Care of clothing (laundries, tailoring, shoe repairing, dry cleaning establishments)
+875,Care of body (barber shops, baths, etc.)
+876,Care of animals (stables, kennels, veterinaries)
+877,Care of buildings and grounds (janitors, gardeners, charwomen)
+878,Employment agencies (private)
+879,Other
+88,Voluntary associations (business)
+881,Producers' associations (chambers of commerce, better business bureaus, granges, etc.)
+882,Trade associations
+883,Employers' associations
+884,Labor unions
+886,Expositions
+887,Consumer associations
+889,Other voluntary associations (business)
+89,Voluntary associations (non-business)
+891,Fraternal orders
+892,Clubs
+893,Political party organizations
+894,Eleemosynary institutions (economically disadvantaged and others dependent on charity) see also :935 and :9353
+895,Sociological. Economic
+866,Foundations
+897,Scientific and technical
+899,Private property management, personal executors, trustees, administrators
+8991,Real estate management (including private purchase & sale)
+8993,Financial investment (private)
+8995,Household expenses, personal expenses
+9,Government services
+91,Executive and administrative units (including the keeping of county records; registration of deeds; town meeting minutes; keeping of town records)
+911,Public safety institutions
+912,Military and naval (including privateering)
+9121,Encampments. Permanent establishments
+914,Police. Constabulary
+916,Fire protection
+92,Finance (collection and care of funds)
+922,National
+924,State
+926,Local
+93,Public welfare institutions
+931,Education
+9313,Schools
+933,Health. Hospitals
+935,Charities. Relief
+9353,Local units. Almshouses
+937,Correction. Prisons
+94,Development and conservation of natural resources
+945,Public lands
+95,Public works
+952,National
+955,State and local
+96,Regulation of industry and commerce (e.g., Interstate Commerce Commission)
+962,National
+966,State
+97,Legislative bodies
+98,Judicial units. Courts

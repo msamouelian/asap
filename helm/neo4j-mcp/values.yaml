@@ -1,0 +1,28 @@
+image:
+  repository: mcp/neo4j
+  tag: "latest"
+  pullPolicy: Always
+
+neo4j:
+  # Name of the Secret created by the neo4j helm chart.
+  # Must contain keys: neo4j-uri, neo4j-user, neo4j-password.
+  secretName: neo4j-auth
+  # Default Neo4j database to query.
+  database: neo4j
+  # Restrict the MCP server to read-only Cypher queries.
+  # Keep true — the extractor writes directly via the driver, not via MCP.
+  readOnly: true
+
+server:
+  port: 8080
+
+service:
+  port: 8080
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"

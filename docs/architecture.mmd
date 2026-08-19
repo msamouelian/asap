@@ -1,0 +1,62 @@
+%%{init: {"theme": "neutral", "themeVariables": {"fontSize": "20px", "fontFamily": "Helvetica, Arial, sans-serif"}, "flowchart": {"curve": "linear", "nodeSpacing": 34, "rankSpacing": 64, "padding": 14}}}%%
+flowchart LR
+    user(("Archivist /<br/>researcher"))
+    browser["Web browser<br/>Svelte SPA"]
+    aspace["ArchivesSpace<br/>system of record"]
+    lmstudio["LM Studio<br/>inference server"]
+
+    subgraph k8s["Kubernetes cluster &nbsp;(on-premises)"]
+        direction LR
+        ui["asapui<br/>nginx + static assets"]
+        kc["Keycloak<br/>OIDC identity"]
+
+        subgraph backend["asapbackend pod"]
+            direction TB
+            agent{{"LLM agent<br/>tool loop"}}
+            rag{{"RAG module<br/>gate / distill / expand"}}
+            orch{{"job orchestration"}}
+        end
+
+        mcp["neo4j-mcp<br/>read-only Cypher tools"]
+        neo[("Neo4j<br/>knowledge graph")]
+        pg[("PostgreSQL<br/>users / conversations / jobs")]
+        vllme["vllm — embeddings<br/>bge-small-en-v1.5"]
+        vllmc["vllm — completions<br/>gpt-oss-20b"]
+        xtr[["asapextractor<br/>batch Job"]]
+        dwk[["asapdocworker<br/>batch Job — docling"]]
+    end
+
+    user --> browser
+    browser -->|"HTTPS"| ui
+    browser <-->|"OIDC PKCE"| kc
+    ui -->|"/api reverse proxy"| agent
+    backend -.->|"JWKS token verify"| kc
+
+    agent -->|"MCP read-cypher"| mcp
+    mcp -->|"Bolt, read-only"| neo
+    agent -->|"history, refs"| pg
+    rag -->|"cited passages"| agent
+    rag -->|"query embeddings"| vllme
+    rag -.->|"Bolt: document<br/>nodes only"| neo
+    agent -->|"chat completions"| vllmc
+    agent -.->|"OpenAI-compatible API,<br/>configurable"| lmstudio
+
+    orch -.->|"spawns"| xtr
+    orch -.->|"spawns"| dwk
+    xtr -->|"HTTP GET, REST"| aspace
+    xtr -->|"Bolt: write<br/>metadata graph"| neo
+    dwk -->|"chunk embeddings"| vllme
+    dwk -->|"Bolt: write<br/>document graph"| neo
+    dwk -->|"job progress"| pg
+
+    classDef pod fill:#e7edf6,stroke:#41597d,color:#1c2b40
+    classDef logical fill:#faf4e1,stroke:#96803f,stroke-dasharray:5 3,color:#403514
+    classDef job fill:#e9f2ea,stroke:#48684d,color:#1e3322
+    classDef external fill:#efefef,stroke:#8a8a8a,color:#333333
+
+    class ui,kc,mcp,neo,pg,vllme,vllmc pod
+    class agent,rag,orch logical
+    class xtr,dwk job
+    class user,browser,aspace,lmstudio external
+    style k8s fill:#fbfbfd,stroke:#41597d
+    style backend fill:#f0f4fa,stroke:#41597d

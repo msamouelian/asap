@@ -1,0 +1,5 @@
+[tool.uv.workspace]
+members = ["packages/*"]
+# asapui is the Svelte frontend — not a Python package, so exclude it from
+# the workspace member glob.
+exclude = ["packages/asapui"]

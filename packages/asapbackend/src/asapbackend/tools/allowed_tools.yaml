@@ -1,0 +1,85 @@
+# Approved Neo4j MCP tools.
+#
+# ONLY the tools listed here will be offered to the LLM and accepted when
+# the LLM requests a tool call. Adding a tool requires a deliberate code
+# review and an image rebuild — this friction is intentional.
+#
+# Excluded tools (and why):
+#   list-gds-procedures — returns a very large payload irrelevant to archival
+#                         queries; causes excessive LLM processing time.
+#   write-cypher        — database is already configured read-only at the MCP
+#                         server level; excluded here for defence in depth.
+
+tools:
+  - name: get-schema
+    description: >
+      Returns the Neo4j graph schema including all node labels, relationship
+      types, and their properties. Call this to understand the graph structure
+      before constructing Cypher queries.
+    arguments:
+      - name: properties
+        type: dict
+        required: true
+        description: >
+          Filter object — pass an empty dict {} to retrieve the full schema.
+
+  - name: read-cypher
+    description: >
+      Execute a read-only Cypher query against the Neo4j graph database and
+      return the results. Never use CREATE, MERGE, SET, DELETE, or REMOVE.
+    arguments:
+      - name: query
+        type: str
+        required: true
+        description: "A valid read-only Cypher query."
+      - name: params
+        type: dict
+        required: false
+        description: >
+          Optional parameters for a parameterised Cypher query,
+          e.g. {"id": "bak00001"} for a query containing $id.
+
+  # Backend-native tool (not from the MCP server): the canned hybrid
+  # topic-search query defined in tools/hybrid_search.py. Executes via
+  # read-cypher with Cypher parameters, so it inherits the read-only
+  # guarantees of the MCP layer.
+  - name: hybrid-search
+    description: >
+      Hybrid topic search combining semantic (vector) and full-text evidence
+      with weighted reciprocal rank fusion.
+    arguments:
+      - name: topic
+        type: str
+        required: true
+        description: "The topic to search for."
+      - name: limit
+        type: int
+        required: false
+        description: "Maximum records to return (default 10, max 200)."
+
+  # Backend-native tool: full text surface of one record by its uri (record
+  # type inferred from the uri path; unknown shapes rejected). Executes via
+  # read-cypher, so it inherits the read-only guarantees of the MCP layer.
+  - name: get-record-text
+    description: >
+      Return one record's identity properties, archival context, and the
+      full content of all attached notes, given its ArchivesSpace uri.
+    arguments:
+      - name: uri
+        type: str
+        required: true
+        description: "Record uri, e.g. /repositories/11/archival_objects/123."
+
+  # Backend-native tool: entity dossier from the AI-generated knowledge
+  # graph (:Inferred nodes). Executes via read-cypher (read-only); vLLM
+  # embeddings for the vector fallback.
+  - name: kg-search
+    description: >
+      Resolve an entity name in the knowledge graph and return its full
+      dossier: identity, twin record, and every relationship with quotes
+      and source links.
+    arguments:
+      - name: name
+        type: str
+        required: true
+        description: "The entity's name, e.g. 'Boston and Albany Railroad'."

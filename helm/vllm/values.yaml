@@ -1,0 +1,54 @@
+image:
+  repository: vllm/vllm-openai-cpu
+  tag: "v0.24.0"
+  pullPolicy: IfNotPresent
+
+model:
+  # HuggingFace model ID. bge-small-en-v1.5 is 384-dim, 512-token max, optimised
+  # for asymmetric information retrieval (short query vs. longer document).
+  name: BAAI/bge-small-en-v1.5
+  # Hard truncation limit in tokens. Must match the vector index `vector.dimensions`
+  # indirectly: the model produces 384-dim vectors regardless of max_length.
+  # Setting this prevents the model from being initialised with its full context
+  # window, which would waste memory on an embedding-only workload.
+  maxModelLen: 512
+  # HuggingFace access token. Required for gated models; leave empty for public ones.
+  hfToken: ""
+
+server:
+  port: 8000
+  # vLLM binds to this internal port; nginx sidecar listens on service.port (8000)
+  # and proxies here after stripping h2c upgrade headers.
+  internalPort: 8001
+  # Intra-op CPU thread count passed via OMP_NUM_THREADS / OPENBLAS_NUM_THREADS.
+  # Keep at or below (allocatable cores − 1) to avoid context-switch overhead.
+  # Hard to detect reliably inside a pod, so this is a configurable parameter.
+  # 8 matches the Mac's performance-core count; measured ~3x embedding
+  # throughput over the previous value of 2.
+  numCpuThreads: 8
+  # On the CPU backend, --gpu-memory-utilization controls the fraction of total
+  # system RAM vLLM reserves (despite the GPU name). Default is 0.92, which
+  # often exceeds available memory when other services share the node. Lower
+  # this value if vLLM fails to start with an out-of-memory error at init time.
+  cpuMemoryUtilization: "0.7"
+
+persistence:
+  # Path inside the k3d server node container — mounted from the Mac host via
+  # the volumes section in k3d-config.yaml. The HuggingFace model cache lives
+  # here so the model survives pod restarts without re-downloading.
+  hostPath: /vllm-data
+  size: 5Gi
+
+service:
+  port: 8000
+
+resources:
+  # bge-small-en-v1.5 weights are ~130 MB. CPU inference for short batches
+  # is light; 2 Gi request gives comfortable headroom for the model + runtime.
+  # CPU limit must accommodate numCpuThreads or the threads just contend.
+  requests:
+    memory: "2Gi"
+    cpu: "4"
+  limits:
+    memory: "4Gi"
+    cpu: "10"

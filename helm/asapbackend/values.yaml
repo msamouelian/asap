@@ -1,0 +1,67 @@
+image:
+  repository: msamoueli/asapbackend
+  tag: "latest"
+  pullPolicy: Always
+
+# ── Environment ───────────────────────────────────────────────────────────────
+env:
+  # Keycloak — internal service URL for JWKS fetching (pod-to-pod).
+  keycloakUrl: http://keycloak
+  # Browser-accessible Keycloak URL returned to the SPA via /auth/config.
+  # Override with --set when deploying to a non-local environment.
+  keycloakPublicUrl: https://keycloak.localhost
+  keycloakRealm: asap
+  keycloakClientId: asapui
+  oidcRoleClaim: asap_roles
+  # Neo4j MCP server endpoint (internal cluster DNS).
+  neo4jMcpUrl: http://graphdb-mcp:8080
+  # Inference server — defaults to the in-cluster Ollama deployment (Mode 1).
+  # Override with --set for external providers (Mode 2).
+  inferenceBaseUrl: http://ollama:11434/v1
+  inferenceModel: llama3.1:8b
+  # Maximum tokens the model + hardware can hold in its context window.
+  # Used to compute context-usage percentage shown in the UI.
+  # Example: gpt-oss-20b on M4 Pro 48GB = 131072; GPT-4o = 128000; Llama3 70B on 4×A100 = 8192
+  inferenceContextWindowTokens: "131072"
+  # Sampling. min_p is a llama.cpp/LM Studio/vLLM extension — the real
+  # OpenAI API 400s on it, so set 0 when inferenceBaseUrl is api.openai.com.
+  # Temperature -1 omits the parameter from every request (required for
+  # OpenAI reasoning-class models, which reject non-default temperature);
+  # this also disables the UI temperature stops for that deployment.
+  inferenceMinP: "0.05"
+  inferenceTemperature: "0.2"
+  # Kubernetes job management
+  k8sNamespace: asap
+  extractorJobName: asapextractor
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# Inference API key — provide at install time via --set.
+# Use "ollama" for the in-cluster Ollama server (Mode 1).
+# Use a real API key for external providers (Mode 2).
+secrets:
+  inferenceApiKey: ""
+  # Secret names created by the neo4j and postgres helm charts.
+  neo4jSecretName: neo4j-auth
+  postgresSecretName: postgres-auth
+
+# Shared document-upload staging volume (PVC owned by the asapdocworker chart).
+docUploads:
+  pvcName: doc-uploads
+
+service:
+  port: 8001
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: false
+  className: "traefik"
+  host: asapbackend.localhost
+  annotations: {}
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "1000m"

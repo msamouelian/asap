@@ -104,6 +104,14 @@
 		return `${s}s`;
 	}
 
+	function fmtDate(iso: string | null): string {
+		if (!iso) return '—';
+		return new Date(iso).toLocaleString(undefined, {
+			month: 'short', day: 'numeric', year: 'numeric',
+			hour: 'numeric', minute: '2-digit',
+		});
+	}
+
 	function fmtRelative(iso: string | null): string {
 		if (!iso) return '—';
 		const diffMs  = Date.now() - new Date(iso).getTime();
@@ -211,7 +219,7 @@
 				<div class="border-t border-sand/60 pt-3 flex items-center gap-3 text-xs text-muted flex-wrap">
 					<span class="font-medium text-charcoal">Last run:</span>
 					<span class="px-2 py-0.5 rounded-full font-medium text-xs {b.cls}">{b.label}</span>
-					<span>Started {fmtRelative(lastCompleted.started_at)}</span>
+					<span title={fmtDate(lastCompleted.started_at)}>Started {fmtRelative(lastCompleted.started_at)}</span>
 					{#if lastCompleted.duration_seconds != null}
 						<span>· Duration {fmtDuration(lastCompleted.duration_seconds)}</span>
 					{/if}
@@ -235,7 +243,10 @@
 						{@const b = badge(run.status)}
 						<tr class="border-b border-sand/50 hover:bg-sand/20 transition-colors">
 							<td class="py-2.5 pr-4 font-mono text-xs text-charcoal">{run.name}</td>
-							<td class="py-2.5 pr-4 text-muted">{fmtRelative(run.started_at)}</td>
+							<td class="py-2.5 pr-4 text-muted whitespace-nowrap">
+								{fmtDate(run.started_at)}
+								<span class="text-muted-light">({fmtRelative(run.started_at)})</span>
+							</td>
 							<td class="py-2.5 pr-4 text-muted tabular-nums">{fmtDuration(run.duration_seconds)}</td>
 							<td class="py-2.5">
 								<span class="text-xs font-medium px-2 py-0.5 rounded-full {b.cls}">

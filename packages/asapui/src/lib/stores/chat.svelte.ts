@@ -397,6 +397,14 @@ class ChatStore {
 		const conv = this.conversations.find(c => c.id === id);
 		if (conv) conv.title = updated.title;
 	}
+
+	async moveConversation(id: string, folderId: string | null) {
+		const conv = this.conversations.find(c => c.id === id);
+		if (!conv || conv.folder_id === folderId) return; // dropped where it already lives
+		const { conversationsApi } = await import('$lib/api/conversations');
+		const updated = await conversationsApi.move(id, folderId);
+		conv.folder_id = updated.folder_id;
+	}
 }
 
 export const chat = new ChatStore();

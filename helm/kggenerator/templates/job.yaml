@@ -11,7 +11,9 @@ spec:
   # asapextractor). The kggenerator reads the extracted graph from Neo4j and
   # writes ONLY :Inferred nodes; it never touches ArchivesSpace.
   suspend: true
-  ttlSecondsAfterFinished: 3600
+  # Keep finished Jobs for 30 days — the admin UI's "Recent Runs" history is
+  # read live from the Kubernetes API, so this TTL IS the history retention.
+  ttlSecondsAfterFinished: 2592000
   backoffLimit: 0
   template:
     metadata:

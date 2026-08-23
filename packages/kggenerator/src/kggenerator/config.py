@@ -52,28 +52,29 @@ EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5
 EMBEDDING_DIMENSIONS: int = 384  # bge-small-en-v1.5; must match vector indexes
 EMBEDDING_BATCH_SIZE: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "64"))
 
-# Pilot collections (hard-coded for initial development; matched
-# case-insensitively against Collection.title). Override with
-# KG_COLLECTION_TITLES as a '||'-separated list.
-_titles_env = os.environ.get("KG_COLLECTION_TITLES", "").strip()
-PILOT_COLLECTION_TITLES: list[str] = (
-    [t.strip() for t in _titles_env.split("||") if t.strip()]
-    if _titles_env
+# Pilot collections, identified by ead_id — the durable, uniqueness-
+# constrained identifier. Titles proved fragile (renames during archival
+# editing, HTML-entity encoding drift aborted a run 2026-08-22); ead_ids
+# survive description work. Titles in comments are for humans only.
+# Override with KG_COLLECTION_EAD_IDS as a '||'-separated list.
+_ead_ids_env = os.environ.get("KG_COLLECTION_EAD_IDS", "").strip()
+PILOT_COLLECTION_EAD_IDS: list[str] = (
+    [t.strip() for t in _ead_ids_env.split("||") if t.strip()]
+    if _ead_ids_env
     else [
-        # Exact Collection.title values verified against the graph 2026-08-09.
-        "Penn Central Transportation Corporation records",
-        "New York, New Haven, and Hartford Railroad Company records",
-        "Boston and Albany Railroad Company records",
-        "Boston and Albany Railroad Co. photograph album",
-        "Ware River Railroad record book",
-        "Boston and Lowell Railroad, Woburn Branch, Woburn Massachusetts records",
-        "Boston & Maine Railroad Malden Station records",
-        "Connecticut and Passumpsic Rivers Railroad Company freight book",
-        "New York Railroads records",
-        "Hudson River Railroad Records",
-        "William Badger Lawrence papers relating to the proposed takeover of the Boston and Maine Railroad by the New York, New Haven, and Hartford Railroad Company",
-        "Old Colony Railroad Company records",
-        "Deed books for Western Rail Road Corporation",
-        "Boston and Providence Railroad Corporation records"
+        "bak00358",  # Penn Central Transportation Corporation records
+        "bak00857",  # New York, New Haven, and Hartford Railroad Company records
+        "bak00034",  # Boston and Albany Railroad Company records
+        "bak00541",  # Boston and Albany Railroad Company photograph album
+        "bak00750",  # Ware River Railroad record book
+        "bak01476",  # Boston and Lowell Railroad, Woburn Branch records
+        "bak01442",  # Boston & Maine Railroad Malden Station records
+        "bak01952",  # Connecticut and Passumpsic Rivers Railroad freight book
+        "bak01448",  # New York Railroads records
+        "bak01446",  # Hudson River Railroad records
+        "bak00083",  # William Badger Lawrence papers (B&M takeover)
+        "bak00672",  # Old Colony Railroad Company records
+        "bak00357",  # Deed books for Western Rail Road Corporation
+        "bak00367",  # Boston and Providence Railroad Corporation records
     ]
 )

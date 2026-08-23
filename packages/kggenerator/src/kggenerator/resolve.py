@@ -102,6 +102,45 @@ def _all_names(e: dict[str, Any]) -> list[str]:
     return [e["name"], *(e.get("alternate_names") or [])]
 
 
+def _initials_pair_match(na: str, nb: str) -> bool:
+    """True when two names agree under initials expansion — 'C. W. Chapin'
+    vs 'Chapin, Chester W.', 'G. Twichell' vs 'Twichell, Ginery'.
+
+    Initials-vs-full-name was the dominant fragmentation cause in the pilot
+    (19th-century business records write people as initials). Requires at
+    least one exact multi-letter token in common (the surname) and every
+    remaining token of the shorter name to match a token of the longer one
+    exactly or as an initial.
+    """
+    ta = [t for t in norm_name(na).split() if t not in _STOP_TOKENS]
+    tb = [t for t in norm_name(nb).split() if t not in _STOP_TOKENS]
+    if not ta or not tb:
+        return False
+    short, long_ = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    if not any(t in long_ for t in short if len(t) > 1):
+        return False  # no shared surname — initials alone prove nothing
+    remaining = list(long_)
+    # Exact multi-letter tokens claim their matches first, so an initial
+    # can never greedily consume the surname ('c' must not take 'chapin').
+    for t in sorted(short, key=len, reverse=True):
+        for cand in remaining:
+            if t == cand or (len(t) == 1 and cand.startswith(t)) \
+                    or (len(cand) == 1 and t.startswith(cand)):
+                remaining.remove(cand)
+                break
+        else:
+            return False
+    return True
+
+
+def initials_compatible(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Any name pair across the two entities agrees under initials expansion."""
+    return any(
+        _initials_pair_match(na, nb)
+        for na in _all_names(a) for nb in _all_names(b)
+    )
+
+
 def name_similarity(a: dict[str, Any], b: dict[str, Any]) -> float:
     """Best similarity across primary + alternate names of both entities.
 
@@ -185,6 +224,15 @@ def score_pair(a: dict[str, Any], b: dict[str, Any]) -> tuple[float, str]:
         return 0.0, f"date veto: {contradiction}"
 
     nsim = name_similarity(a, b)
+    # Initials-vs-full-name is how 19th-century records write people
+    # ('C. W. Chapin' / 'Chapin, Chester W.') and was the dominant
+    # fragmentation cause in the pilot. A compatible pair of PERSON names
+    # scores at least 0.8 — into the LLM adjudication band, never
+    # auto-merge: initials still need corroborating evidence.
+    if (nsim < 0.8 and a.get("agent_type") == "person"
+            and b.get("agent_type") == "person"
+            and initials_compatible(a, b)):
+        nsim = 0.8
     discrepancy = date_discrepancy(a, b)
     if norm_name(a["name"]) == norm_name(b["name"]):
         if discrepancy:

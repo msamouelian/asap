@@ -42,6 +42,10 @@ class ConversationUpdate(BaseModel):
     title: str
 
 
+class ConversationFolderUpdate(BaseModel):
+    folder_id: uuid.UUID | None   # None = move to the implicit root folder 'All'
+
+
 class ConversationResponse(BaseModel):
     id: str
     user_id: str
@@ -49,6 +53,7 @@ class ConversationResponse(BaseModel):
     created_ts: datetime
     message_count: int
     context_pct: float | None = None
+    folder_id: str | None = None  # None = implicit root folder 'All'
 
 
 class RetrievedChunk(BaseModel):
@@ -99,6 +104,7 @@ def _row_to_response(row: dict) -> ConversationResponse:
         created_ts=row["created_ts"],
         message_count=row["message_count"],
         context_pct=_context_pct(row.get("last_prompt_tokens")),
+        folder_id=str(row["folder_id"]) if row.get("folder_id") else None,
     )
 
 
@@ -107,7 +113,7 @@ async def _get_or_404(conn: psycopg.AsyncConnection, conversation_id: uuid.UUID,
         await cur.execute(
             """
             SELECT c.id, c.user_id, c.title, c.last_prompt_tokens, c.created_ts,
-                   COUNT(cm.id) AS message_count
+                   c.folder_id, COUNT(cm.id) AS message_count
             FROM conversation c
             LEFT JOIN conversation_message cm ON cm.conversation_id = c.id
             WHERE c.id = %s AND c.user_id = %s
@@ -130,7 +136,7 @@ async def list_conversations(user: CurrentUser, conn: DBConn):
         await cur.execute(
             """
             SELECT c.id, c.user_id, c.title, c.last_prompt_tokens, c.created_ts,
-                   COUNT(cm.id) AS message_count
+                   c.folder_id, COUNT(cm.id) AS message_count
             FROM conversation c
             LEFT JOIN conversation_message cm ON cm.conversation_id = c.id
             WHERE c.user_id = %s
@@ -173,6 +179,30 @@ async def update_conversation(conversation_id: uuid.UUID, body: ConversationUpda
         await cur.execute(
             "UPDATE conversation SET title = %s WHERE id = %s AND user_id = %s RETURNING id",
             (body.title, conversation_id, uuid.UUID(cid)),
+        )
+        if not await cur.fetchone():
+            raise _not_found()
+    return _row_to_response(await _get_or_404(conn, conversation_id, cid))
+
+
+@router.put("/{conversation_id}/folder", response_model=ConversationResponse)
+async def move_conversation(
+    conversation_id: uuid.UUID, body: ConversationFolderUpdate, user: CurrentUser, conn: DBConn,
+):
+    """Move a conversation into a folder (folder_id null = the root 'All')."""
+    cid = await _caller_id(conn, user)
+    async with conn.cursor() as cur:
+        if body.folder_id is not None:
+            # The target folder must exist and belong to the caller.
+            await cur.execute(
+                "SELECT 1 FROM conversation_folder WHERE id = %s AND user_id = %s",
+                (body.folder_id, uuid.UUID(cid)),
+            )
+            if not await cur.fetchone():
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found.")
+        await cur.execute(
+            "UPDATE conversation SET folder_id = %s WHERE id = %s AND user_id = %s RETURNING id",
+            (body.folder_id, conversation_id, uuid.UUID(cid)),
         )
         if not await cur.fetchone():
             raise _not_found()

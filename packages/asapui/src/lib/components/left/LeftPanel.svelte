@@ -25,7 +25,10 @@
 	}
 </script>
 
-<aside class="w-72 shrink-0 flex flex-col bg-parchment border-r border-sand h-full overflow-hidden">
+<aside
+	class="shrink-0 flex flex-col bg-parchment border-r border-sand h-full overflow-hidden"
+	style="width: {ui.leftPanelWidth}px"
+>
 
 	<!-- ── Administrator ───────────────────────────────────────────────── -->
 	<div class="px-3 pt-4 pb-3 border-b border-sand shrink-0">
@@ -48,21 +51,6 @@
 				<span>{link.label}</span>
 			</button>
 		{/each}
-		{#if auth.isAdmin}
-			<!-- External tool link — hidden entirely from non-admins -->
-			<a
-				href={NEO4J_URL}
-				target="_blank"
-				rel="noopener noreferrer"
-				class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left text-charcoal hover:bg-sand hover:text-navy"
-			>
-				<span class="text-base leading-none">🗄️</span>
-				<span>Neo4j Browser</span>
-				<svg class="w-3 h-3 ml-auto text-muted-light" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" />
-				</svg>
-			</a>
-		{/if}
 	</div>
 
 	<!-- ── User ────────────────────────────────────────────────────────── -->
@@ -88,6 +76,21 @@
 			<span class="text-base leading-none">🔎</span>
 			<span>Hybrid Search</span>
 		</button>
+		<!-- External tool link, visible to all users. Neo4j Browser does its
+		     own native login — accounts are provisioned manually by the
+		     administrator in Neo4j (Keycloak is not involved). -->
+		<a
+			href={NEO4J_URL}
+			target="_blank"
+			rel="noopener noreferrer"
+			class="w-full flex items-center gap-2.5 px-3 py-2 mt-1 rounded-lg text-sm transition-colors text-left text-charcoal hover:bg-sand hover:text-navy"
+		>
+			<span class="text-base leading-none">🗄️</span>
+			<span>Neo4j Browser</span>
+			<svg class="w-3 h-3 ml-auto text-muted-light" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" />
+			</svg>
+		</a>
 	</div>
 
 	<!-- ── New Chat / New Prompt button ───────────────────────────────── -->

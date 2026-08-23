@@ -68,6 +68,16 @@ def _canonical_tool_name(name: str, known: set[str]) -> str:
     return cleaned or "unknown-tool"
 
 
+def _extra_body_kwargs() -> dict:
+    """Non-standard/optional params, merged into one extra_body dict."""
+    extra: dict = {}
+    if settings.inference_min_p > 0:
+        extra["min_p"] = settings.inference_min_p
+    if settings.inference_reasoning_effort:
+        extra["reasoning_effort"] = settings.inference_reasoning_effort
+    return {"extra_body": extra} if extra else {}
+
+
 def _extract_reasoning(delta) -> str | None:
     """Pull reasoning content from a streaming delta.
 
@@ -124,10 +134,7 @@ async def run(
                 **sampling_kwargs(temperature),
                 stream=True,
                 stream_options={"include_usage": True},
-                **(
-                    {"extra_body": {"min_p": settings.inference_min_p}}
-                    if settings.inference_min_p > 0 else {}
-                ),
+                **_extra_body_kwargs(),
                 **tool_kwargs,
             )
 

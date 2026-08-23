@@ -9,7 +9,7 @@
 		title="Data Extraction"
 		buttonLabel="Run Extraction"
 		runningLabel="Extraction in Progress"
-		runningNote="Extraction typically takes about 1.5 hours, and the graph is rebuilt from scratch during the run. Status refreshes automatically every 30 seconds."
+		runningNote="Extraction typically takes about 3 hours, and the graph is rebuilt from scratch during the run. Status refreshes automatically every 30 seconds."
 		api={extractorApi}
 	/>
 

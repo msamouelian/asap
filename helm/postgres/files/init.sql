@@ -114,21 +114,45 @@ CREATE INDEX IF NOT EXISTS idx_system_prompt_tag_tag
     ON system_prompt_tag(tag_id);
 
 -- ---------------------------------------------------------------------------
+-- conversation_folder — per-user tree for organizing conversations.
+-- The root folder 'All' is implicit and never stored: parent_id NULL means
+-- a direct child of 'All'. Name uniqueness within a parent is enforced by
+-- the backend; the FK actions are backstops (the backend refuses to delete
+-- non-empty folders).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS conversation_folder (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID         NOT NULL REFERENCES asap_user(id) ON DELETE CASCADE,
+    parent_id  UUID         REFERENCES conversation_folder(id) ON DELETE RESTRICT,
+    name       VARCHAR(100) NOT NULL,
+    created_ts TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_folder_user
+    ON conversation_folder(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_folder_parent
+    ON conversation_folder(parent_id);
+
+-- ---------------------------------------------------------------------------
 -- conversation
 -- last_prompt_tokens: prompt token count from the most recent LLM call,
 --   used to compute context-usage percentage in the UI. NULL until the
 --   first turn completes or if the inference server does not report usage.
+-- folder_id: NULL = the conversation lives in the implicit root folder 'All'.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS conversation (
     id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID         NOT NULL REFERENCES asap_user(id),
     title               VARCHAR(100),
     last_prompt_tokens  INTEGER,
+    folder_id           UUID         REFERENCES conversation_folder(id) ON DELETE SET NULL,
     created_ts          TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversation_user
     ON conversation(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversation_folder_id
+    ON conversation(folder_id);
 
 -- ---------------------------------------------------------------------------
 -- conversation_message

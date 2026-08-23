@@ -20,5 +20,8 @@ data:
   # the parameter entirely (OpenAI reasoning-class models reject it).
   INFERENCE_MIN_P:                {{ .Values.env.inferenceMinP | quote }}
   INFERENCE_TEMPERATURE:          {{ .Values.env.inferenceTemperature | quote }}
+  INFERENCE_REASONING_EFFORT:     {{ .Values.env.inferenceReasoningEffort | quote }}
+  {{- /* default guards --reuse-values upgrades from releases that predate this key */}}
+  CYPHER_RUN_MAX_ROWS:   {{ .Values.env.cypherRunMaxRows | default "50000" | quote }}
   K8S_NAMESPACE:         {{ .Values.env.k8sNamespace | quote }}
   EXTRACTOR_JOB_NAME:    {{ .Values.env.extractorJobName | quote }}

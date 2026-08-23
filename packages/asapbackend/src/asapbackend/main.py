@@ -22,8 +22,10 @@ from asapbackend.routers import (
     chat,
     search,
     conversations,
+    cypher,
     extractor,
     documents,
+    folders,
     kgjob,
     system_prompts,
     tags,
@@ -64,6 +66,8 @@ app.include_router(chat.router)
 app.include_router(search.router)
 app.include_router(users.router)
 app.include_router(conversations.router)
+app.include_router(folders.router)
+app.include_router(cypher.router)
 app.include_router(user_prompts.router)
 app.include_router(system_prompts.router)
 app.include_router(documents.router)

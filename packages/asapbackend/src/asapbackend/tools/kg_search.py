@@ -261,7 +261,7 @@ async def _entity_block(hit: dict, top: bool) -> tuple[list[str], list[str]]:
         MATCH (n:Inferred {id: $id})-[r]->(m:Inferred)
         RETURN type(r) AS t, r.nature AS nature, r.date AS date,
                r.quote AS quote, r.source_uri AS sources,
-               m.display_name AS other
+               r.confidence AS conf, m.display_name AS other
         ORDER BY t, other LIMIT $cap
         """,
         id=hit["id"], cap=_MAX_RELATIONS if top else _MAX_FAMILY_RELATIONS,
@@ -276,6 +276,11 @@ async def _entity_block(hit: dict, top: bool) -> tuple[list[str], list[str]]:
                 line += f" ({r['date']})"
             if r.get("quote"):
                 line += f' — "{r["quote"]}"'
+            # Surface the extractor's own uncertainty so answers hedge
+            # title-inferred and ambiguous claims (extraction reserves 1.0
+            # for facts stated outright in narrative text).
+            if isinstance(r.get("conf"), (int, float)) and r["conf"] < 0.95:
+                line += f" [confidence {r['conf']:.1f}]"
             if line not in seen_lines:  # inverse pairs of generic relations
                 seen_lines.add(line)
                 rel_lines.append(line)

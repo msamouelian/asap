@@ -9,9 +9,10 @@ spec:
   # Deployed suspended — asapbackend unsuspends (first run) or deletes+recreates
   # (subsequent runs) this Job via the Kubernetes API.
   suspend: true
-  # Automatically remove the Job 1 hour after it finishes so the cluster
-  # doesn't accumulate stale Job objects.
-  ttlSecondsAfterFinished: 3600
+  # Keep finished Jobs for 30 days — the admin UI's "Recent Runs" history is
+  # read live from the Kubernetes API, so this TTL IS the history retention.
+  # (Copied onto every triggered run by asapbackend's job trigger.)
+  ttlSecondsAfterFinished: 2592000
   backoffLimit: 0
   template:
     metadata:

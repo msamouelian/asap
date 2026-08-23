@@ -60,43 +60,33 @@ class GraphReader:
             return [r.data() for r in session.run(cypher, **params)]
 
 
-def resolve_collections(reader: GraphReader, titles: list[str]) -> list[dict[str, Any]]:
-    """Resolve collection titles to Collection nodes, failing loudly.
+def resolve_collections(reader: GraphReader, ead_ids: list[str]) -> list[dict[str, Any]]:
+    """Resolve pilot ead_ids to Collection nodes, failing loudly.
 
-    Titles are matched case-insensitively. A missing title aborts the run
-    with the closest candidates listed, so a typo in the pilot list (or a
-    renamed resource in ArchivesSpace) is caught before any LLM spend.
+    ead_id is the durable identifier (uniqueness-constrained in the graph);
+    titles are deliberately NOT used for matching — they change under
+    normal archival editing. A missing ead_id aborts the run before any LLM
+    spend: it means the collection was deleted or unpublished in
+    ArchivesSpace, which a human should look at.
     """
-    resolved: list[dict[str, Any]] = []
-    missing: list[str] = []
-    for title in titles:
-        rows = reader.run(
-            "MATCH (c:Collection) WHERE toLower(c.title) = toLower($title) "
-            "RETURN c.uri AS uri, c.title AS title, "
-            "c.date_inclusive_expression AS date_expression, "
-            "c.date_inclusive_begin AS date_begin, "
-            "c.date_inclusive_end AS date_end",
-            title=title,
-        )
-        if rows:
-            resolved.append(rows[0])
-        else:
-            missing.append(title)
-
+    rows = reader.run(
+        "MATCH (c:Collection) WHERE c.ead_id IN $eads "
+        "RETURN c.ead_id AS ead_id, c.uri AS uri, c.title AS title, "
+        "c.date_inclusive_expression AS date_expression, "
+        "c.date_inclusive_begin AS date_begin, "
+        "c.date_inclusive_end AS date_end",
+        eads=ead_ids,
+    )
+    by_ead = {r["ead_id"]: r for r in rows}
+    missing = [e for e in ead_ids if e not in by_ead]
     if missing:
-        for title in missing:
-            # Suggest near-misses on the first distinctive word.
-            word = max(title.split(), key=len)
-            candidates = reader.run(
-                "MATCH (c:Collection) WHERE toLower(c.title) CONTAINS toLower($w) "
-                "RETURN c.title AS title LIMIT 5",
-                w=word,
-            )
-            logger.error(
-                "Collection not found: %r. Closest titles containing %r: %s",
-                title, word, [c["title"] for c in candidates] or "none",
-            )
+        for ead in missing:
+            logger.error("Collection not found for ead_id %r — deleted or "
+                         "unpublished in ArchivesSpace?", ead)
         raise SystemExit(f"{len(missing)} pilot collection(s) not found — aborting.")
+    resolved = [by_ead[e] for e in ead_ids]
+    for c in resolved:
+        logger.info("Pilot collection %s = %r", c["ead_id"], c["title"])
     return resolved
 
 
@@ -136,7 +126,8 @@ def build_surface(reader: GraphReader, collection: dict[str, Any]) -> dict[str, 
 
     units: list[dict[str, Any]] = []
 
-    def add(source_uri: str, kind: str, text: str, label: str = "") -> None:
+    def add(source_uri: str, kind: str, text: str, label: str = "",
+            series: str | None = None) -> None:
         text = (text or "").strip()
         if not text:
             return
@@ -148,6 +139,14 @@ def build_surface(reader: GraphReader, collection: dict[str, Any]) -> dict[str, 
                 "kind": kind,
                 "text": part,
             }
+            # Multilevel description: an item inherits context from its
+            # series ("Letter books—G. Twichell, superintendent" under
+            # "Series II: Western Rail-Road Corporation records" means
+            # superintendent of the Western). Without this field the model
+            # can only guess the owning organization from chunk
+            # neighborhood — observed misattributions 2026-08-21.
+            if series:
+                unit["series"] = series
             part_label = label
             if len(parts) > 1:
                 part_label = f"{label or kind} (part {n + 1}/{len(parts)})"
@@ -167,23 +166,30 @@ def build_surface(reader: GraphReader, collection: dict[str, Any]) -> dict[str, 
         add(uri, f"collection_note:{row['type']}", row["content"], row["label"] or "")
 
     # 2. Archival object titles (entity-rich: correspondent names, companies,
-    #    places) and their narrative notes, in hierarchy order.
+    #    places) and their narrative notes, in hierarchy order. Each unit
+    #    carries its top-level ancestor (the series) so extraction can use
+    #    multilevel description instead of guessing context.
     for row in reader.run(
-        "MATCH (c:Collection {uri: $uri})-[:HAS_PART*1..]->(ao:ArchivalObject) "
-        "RETURN DISTINCT ao.uri AS uri, ao.title AS title "
+        "MATCH (c:Collection {uri: $uri})-[:HAS_PART]->(top:ArchivalObject) "
+        "MATCH (top)-[:HAS_PART*0..]->(ao:ArchivalObject) "
+        "RETURN DISTINCT ao.uri AS uri, ao.title AS title, "
+        "CASE WHEN top = ao THEN NULL ELSE top.title END AS series "
         "ORDER BY ao.uri",
         uri=uri,
     ):
-        add(row["uri"], "ao_title", row["title"])
+        add(row["uri"], "ao_title", row["title"], series=row["series"])
     for row in reader.run(
-        "MATCH (c:Collection {uri: $uri})-[:HAS_PART*1..]->(ao:ArchivalObject)"
-        "-[:HAS_NOTE]->(n:Note) "
+        "MATCH (c:Collection {uri: $uri})-[:HAS_PART]->(top:ArchivalObject) "
+        "MATCH (top)-[:HAS_PART*0..]->(ao:ArchivalObject)-[:HAS_NOTE]->(n:Note) "
         "WHERE n.type IN $types AND n.content IS NOT NULL "
         "RETURN DISTINCT ao.uri AS uri, n.type AS type, n.label AS label, "
-        "n.content AS content ORDER BY ao.uri",
+        "n.content AS content, "
+        "CASE WHEN top = ao THEN NULL ELSE top.title END AS series "
+        "ORDER BY ao.uri",
         uri=uri, types=NARRATIVE_NOTE_TYPES,
     ):
-        add(row["uri"], f"ao_note:{row['type']}", row["content"], row["label"] or "")
+        add(row["uri"], f"ao_note:{row['type']}", row["content"],
+            row["label"] or "", series=row["series"])
 
     # 3. Archivist-linked agents (strong anchors) and their narrative notes.
     #    The display name lives on the Agent record, so the agent's own uri is

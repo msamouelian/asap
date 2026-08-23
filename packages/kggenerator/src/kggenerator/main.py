@@ -37,15 +37,15 @@ logger = logging.getLogger(__name__)
 
 def cmd_extract(args: argparse.Namespace) -> None:
     run_id = datetime.now(timezone.utc).strftime("kg-%Y%m%d-%H%M%S")
-    titles = (
+    ead_ids = (
         [t.strip() for t in args.collections.split("||") if t.strip()]
         if args.collections
-        else config.PILOT_COLLECTION_TITLES
+        else config.PILOT_COLLECTION_EAD_IDS
     )
-    logger.info("=== KG extraction %s over %d collections ===", run_id, len(titles))
+    logger.info("=== KG extraction %s over %d collections ===", run_id, len(ead_ids))
 
     with GraphReader() as reader, ArtifactStore() as store, KGExtractor() as llm:
-        collections = resolve_collections(reader, titles)
+        collections = resolve_collections(reader, ead_ids)
         done = failed = skipped = 0
         for coll in collections:
             existing = store.get(coll["uri"])
@@ -169,7 +169,7 @@ def main() -> None:
     p_extract.add_argument("--max-chunks", type=int, default=0,
                            help="development cap on chunks per collection (partial artifact)")
     p_extract.add_argument("--collections", default="",
-                           help="'||'-separated collection titles (default: pilot list)")
+                           help="'||'-separated collection ead_ids (default: pilot list)")
     p_extract.set_defaults(func=cmd_extract)
 
     p_resolve = sub.add_parser(

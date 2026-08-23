@@ -100,6 +100,7 @@ class KGExtractor:
         (logged) rather than failing the whole chunk.
         """
         valid_indices = {u["i"] for u in chunk["texts"]}
+        texts_by_i = {u["i"]: u["text"] for u in chunk["texts"]}
         user_msg = json.dumps(chunk, ensure_ascii=False)
         messages = [
             {"role": "system", "content": self._system_prompt},
@@ -118,12 +119,12 @@ class KGExtractor:
                 raise ExtractionError(f"inference request failed: {exc}") from exc
 
             if graph is not None:
-                graph, errors = _validate(graph, valid_indices)
+                graph, errors = _validate(graph, valid_indices, texts_by_i)
                 if not errors:
                     return graph
                 last_errors = errors
                 if attempt == config.LLM_RETRIES:
-                    return _salvage(graph, valid_indices, errors)
+                    return _salvage(graph, valid_indices, texts_by_i, errors)
 
             logger.warning(
                 "Chunk extraction attempt %d failed validation (%d errors); retrying.",
@@ -145,8 +146,22 @@ class KGExtractor:
 # Validation
 # ---------------------------------------------------------------------------
 
+def _quote_matches(quote: str, evidence: list, texts_by_i: dict) -> bool:
+    """The verbatim quote must appear in at least one CITED unit — quoting
+    one unit while citing its neighbor was observed in evaluation (citation
+    drift) and silently corrupts provenance. Whitespace- and case-tolerant."""
+    q = " ".join(str(quote).split()).casefold().strip('"\u201c\u201d ')
+    if not q:
+        return True
+    for i in evidence or []:
+        t = " ".join(str(texts_by_i.get(i, "")).split()).casefold()
+        if q in t:
+            return True
+    return False
+
+
 def _validate(
-    graph: dict[str, Any], valid_indices: set[int]
+    graph: dict[str, Any], valid_indices: set[int], texts_by_i: dict
 ) -> tuple[dict[str, Any], list[str]]:
     """Normalize in place and return (graph, error list)."""
     errors: list[str] = []
@@ -194,6 +209,13 @@ def _validate(
             errors.append(f"{label}: type not in the relation menu "
                           f"(use {GENERIC_RELATION} if nothing fits)")
         errors.extend(_check_evidence(r, label, valid_indices))
+        if r.get("quote") and isinstance(r.get("evidence"), list) \
+                and not _check_evidence(r, label, valid_indices) \
+                and not _quote_matches(r["quote"], r["evidence"], texts_by_i):
+            errors.append(
+                f"{label}: the quote does not appear in any cited evidence "
+                "unit — cite the unit the quote actually comes from, or fix "
+                "the quote")
     return graph, errors
 
 
@@ -208,7 +230,8 @@ def _check_evidence(item: dict[str, Any], label: str, valid: set[int]) -> list[s
 
 
 def _salvage(
-    graph: dict[str, Any], valid_indices: set[int], errors: list[str]
+    graph: dict[str, Any], valid_indices: set[int], texts_by_i: dict,
+    errors: list[str]
 ) -> dict[str, Any]:
     """Keep the valid subset of a graph that failed final validation."""
     entities = [
@@ -227,6 +250,7 @@ def _salvage(
         and r.get("from") != r.get("to")
         and (r.get("type") == GENERIC_RELATION or r.get("type") in RELATIONS_BY_NAME)
         and not _check_evidence(r, "", valid_indices)
+        and _quote_matches(r.get("quote", ""), r.get("evidence"), texts_by_i)
     ]
     dropped_e = len(graph.get("entities", [])) - len(entities)
     dropped_r = len(graph.get("relations", [])) - len(relations)

@@ -13,6 +13,10 @@
 #     --keycloak-admin-password '<password>' \  # Keycloak master admin password
 #     [--inference-base-url '<url>']         \  # override for Mode 2 (external server)
 #     [--inference-model '<model>']          \  # override model name
+#     [--inference-reasoning-effort '<effort>'] \  # 'none' REQUIRED for OpenAI gpt-5-class + tools on chat completions; omit for LM Studio/gpt-oss
+#     [--inference-min-p '<0..1>']            \  # llama.cpp/LM Studio/vLLM extension; set 0 for api.openai.com (rejects it)
+#     [--inference-temperature '<t>']         \  # -1 omits the parameter (required for OpenAI reasoning-class models)
+#     [--inference-context-window-tokens '<n>'] \  # model context size, drives the UI usage percentage
 #     [--asap-env development|production]    \
 #     [--namespace asap]                     \
 #     [--skip-ollama]                        \
@@ -40,6 +44,10 @@ ASPACE_PASSWORD=""
 INFERENCE_API_KEY=""
 INFERENCE_BASE_URL=""
 INFERENCE_MODEL=""
+INFERENCE_REASONING_EFFORT=""
+INFERENCE_MIN_P=""
+INFERENCE_TEMPERATURE=""
+INFERENCE_CONTEXT_WINDOW_TOKENS=""
 ASAP_ENV=""
 INGRESS_HOST=""
 UI_HOST=""
@@ -60,6 +68,10 @@ while [[ $# -gt 0 ]]; do
     --inference-api-key)  INFERENCE_API_KEY="$2";  shift 2 ;;
     --inference-base-url) INFERENCE_BASE_URL="$2"; shift 2 ;;
     --inference-model)    INFERENCE_MODEL="$2";    shift 2 ;;
+    --inference-reasoning-effort) INFERENCE_REASONING_EFFORT="$2"; shift 2 ;;
+    --inference-min-p)            INFERENCE_MIN_P="$2";            shift 2 ;;
+    --inference-temperature)      INFERENCE_TEMPERATURE="$2";      shift 2 ;;
+    --inference-context-window-tokens) INFERENCE_CONTEXT_WINDOW_TOKENS="$2"; shift 2 ;;
     --asap-env)           ASAP_ENV="$2";           shift 2 ;;
     --ingress-host)       INGRESS_HOST="$2";       shift 2 ;;
     --ui-host)            UI_HOST="$2";            shift 2 ;;
@@ -287,6 +299,12 @@ echo "▶ Installing asapbackend..."
 BACKEND_SETS="--set secrets.inferenceApiKey=${INFERENCE_API_KEY}"
 [[ -n "$INFERENCE_BASE_URL" ]] && BACKEND_SETS="$BACKEND_SETS --set env.inferenceBaseUrl=${INFERENCE_BASE_URL}"
 [[ -n "$INFERENCE_MODEL"    ]] && BACKEND_SETS="$BACKEND_SETS --set env.inferenceModel=${INFERENCE_MODEL}"
+[[ -n "$INFERENCE_REASONING_EFFORT" ]] && BACKEND_SETS="$BACKEND_SETS --set env.inferenceReasoningEffort=${INFERENCE_REASONING_EFFORT}"
+# Numeric values are passed with --set-string so helm keeps them as strings
+# (the configmap template quotes them; pydantic does the type conversion).
+[[ -n "$INFERENCE_MIN_P"       ]] && BACKEND_SETS="$BACKEND_SETS --set-string env.inferenceMinP=${INFERENCE_MIN_P}"
+[[ -n "$INFERENCE_TEMPERATURE" ]] && BACKEND_SETS="$BACKEND_SETS --set-string env.inferenceTemperature=${INFERENCE_TEMPERATURE}"
+[[ -n "$INFERENCE_CONTEXT_WINDOW_TOKENS" ]] && BACKEND_SETS="$BACKEND_SETS --set-string env.inferenceContextWindowTokens=${INFERENCE_CONTEXT_WINDOW_TOKENS}"
 [[ -n "$ASAP_ENV"           ]] && BACKEND_SETS="$BACKEND_SETS --set env.asapEnv=${ASAP_ENV}"
 if [[ -n "$INGRESS_HOST" ]]; then
   # DEPRECATED 2026-07-24: the backend is intentionally not exposed via its

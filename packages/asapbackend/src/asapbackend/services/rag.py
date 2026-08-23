@@ -34,6 +34,13 @@ import asyncio
 import json
 import logging
 import re
+
+
+def _rag_extra() -> dict:
+    from asapbackend.config import settings
+    if settings.inference_reasoning_effort:
+        return {"extra_body": {"reasoning_effort": settings.inference_reasoning_effort}}
+    return {}
 import statistics
 import uuid
 from typing import Any
@@ -163,6 +170,7 @@ async def _distill_query(text: str) -> str:
                 ],
                 max_tokens=1024,
                 **sampling_kwargs(0.0),
+                **(_rag_extra() or {}),
             ),
             timeout=20.0,
         )
@@ -213,6 +221,7 @@ async def _relevance_filter(question: str, kept: list[dict]) -> list[dict]:
                 ],
                 max_tokens=2048,
                 **sampling_kwargs(0.0),
+                **(_rag_extra() or {}),
             ),
             timeout=30.0,
         )

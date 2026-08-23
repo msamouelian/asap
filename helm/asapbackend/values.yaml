@@ -30,6 +30,13 @@ env:
   # this also disables the UI temperature stops for that deployment.
   inferenceMinP: "0.05"
   inferenceTemperature: "0.2"
+  # Reasoning effort: "" omits the parameter (LM Studio / gpt-oss).
+  # Set "none" for OpenAI gpt-5-class models — required to use function
+  # tools on /v1/chat/completions.
+  inferenceReasoningEffort: ""
+  # Safety ceiling for the chat UI's "run full query" button (rows returned
+  # by direct read-cypher execution; the UI shows a truncation banner).
+  cypherRunMaxRows: "50000"
   # Kubernetes job management
   k8sNamespace: asap
   extractorJobName: asapextractor

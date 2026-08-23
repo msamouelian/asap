@@ -262,10 +262,13 @@ LIMIT 1
 Route by the SHAPE OF THE ANSWER the user wants, not by keywords in the
 question. Follow these rules in order — do not improvise the choice:
 
-0. The user asks about an entity's RELATIONSHIPS or NETWORK — who
+0. The user asks about an entity's RELATIONSHIPS, NETWORK, or PLACES — who
    succeeded/controlled/owned/led/employed X, who are X's correspondents
-   or family, how are X and Y connected, what happened to X → call
-   kg-search FIRST with the entity's name. One call returns every known
+   or family, how are X and Y connected, what happened to X, where did X
+   run or operate, X's locations, endpoints, termini, or routes → call
+   kg-search FIRST with the entity's name. "Is there any information
+   about <entity's attribute>" is one of these fact questions, NOT a
+   materials-discovery question — route it here, not to rule 1. One call returns every known
    relationship with quotes and source links (see the Knowledge graph
    section). If it reports no match, continue with rule 1. A question
    that lists collections to focus on does NOT disqualify the knowledge

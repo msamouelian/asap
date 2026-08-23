@@ -107,6 +107,18 @@ class Settings(BaseSettings):
     # mid-Cypher, permissive in prose. Not an official OpenAI param; sent
     # via extra_body, honored by llama.cpp/LM Studio and vLLM. 0 disables.
     inference_min_p: float = 0.05
+    # Reasoning effort sent with every completion request. Empty = omit the
+    # parameter (correct for LM Studio / gpt-oss, which manage their own
+    # reasoning). OpenAI gpt-5-class models REQUIRE 'none' here to use
+    # function tools on /v1/chat/completions — their server-side default
+    # enables reasoning, which that endpoint cannot combine with tools.
+    inference_reasoning_effort: str = ""
+
+    # Safety ceiling for the chat UI's "run full query" button (direct
+    # read-cypher execution with LIMIT clauses stripped). The response is
+    # truncated to this many rows and flagged, so a broad query cannot ship
+    # an unbounded payload to the browser.
+    cypher_run_max_rows: int = 50000
 
     # Total effective context window in tokens for the configured model +
     # hardware. Used to compute context-usage percentage shown in the UI.

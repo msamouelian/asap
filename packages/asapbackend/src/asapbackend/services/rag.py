@@ -158,7 +158,7 @@ async def _distill_query(text: str) -> str:
     DACS standards' -> 'DACS requirements for biographical history notes'.
     Mixed-intent framing measurably dilutes bge embeddings against the
     document corpus. Falls back to the raw text on any failure."""
-    from asapbackend.llm.client import get_llm_client, sampling_kwargs
+    from asapbackend.llm.client import completion_cap_kwargs, get_llm_client, sampling_kwargs
 
     try:
         resp = await asyncio.wait_for(
@@ -168,11 +168,11 @@ async def _distill_query(text: str) -> str:
                     {"role": "system", "content": _DISTILL_PROMPT},
                     {"role": "user", "content": text},
                 ],
-                max_tokens=1024,
+                **completion_cap_kwargs(2048),
                 **sampling_kwargs(0.0),
                 **(_rag_extra() or {}),
             ),
-            timeout=20.0,
+            timeout=30.0,
         )
         distilled = " ".join((resp.choices[0].message.content or "").split())
         if not distilled or len(distilled) > 300:
@@ -203,7 +203,7 @@ async def _relevance_filter(question: str, kept: list[dict]) -> list[dict]:
     actually useful for the question — the bi-encoder can't tell 'discusses
     biographical notes' from 'is the changelog of the standard that contains
     rules about biographical notes'. Fails open: any error keeps everything."""
-    from asapbackend.llm.client import get_llm_client, sampling_kwargs
+    from asapbackend.llm.client import completion_cap_kwargs, get_llm_client, sampling_kwargs
 
     if len(kept) <= 1:
         return kept
@@ -219,11 +219,11 @@ async def _relevance_filter(question: str, kept: list[dict]) -> list[dict]:
                     {"role": "system", "content": _RELEVANCE_PROMPT},
                     {"role": "user", "content": f"Question: {question}\n\n{snippets}"},
                 ],
-                max_tokens=2048,
+                **completion_cap_kwargs(4096),
                 **sampling_kwargs(0.0),
                 **(_rag_extra() or {}),
             ),
-            timeout=30.0,
+            timeout=45.0,
         )
         content = resp.choices[0].message.content or ""
         m = re.search(r"\[[\d,\s]*\]", content)

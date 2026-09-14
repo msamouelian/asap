@@ -35,3 +35,18 @@ def sampling_kwargs(requested: float | None = None) -> dict:
             else settings.inference_temperature
         )
     }
+
+
+def completion_cap_kwargs(n: int) -> dict:
+    """Completion-length cap for a non-streaming utility call.
+
+    OpenAI gpt-5-class models reject `max_tokens` outright (400: use
+    `max_completion_tokens`); LM Studio / gpt-oss accept `max_tokens`.
+    A configured INFERENCE_REASONING_EFFORT is this deployment's existing
+    marker for the former, so key off it rather than adding another knob.
+    Note that with reasoning models the cap covers reasoning + answer
+    tokens, so callers should size it generously.
+    """
+    if settings.inference_reasoning_effort:
+        return {"max_completion_tokens": n}
+    return {"max_tokens": n}

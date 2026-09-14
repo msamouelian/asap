@@ -36,6 +36,40 @@ endpoint at an external provider.
 - **Admin jobs** — data extraction and knowledge-graph generation run as
   Kubernetes Jobs, triggered and monitored from the UI's admin panel.
 
+## Screenshots
+
+![Landing page](screenshots/Landing.png)
+*Landing page — conversation folders and saved prompts on the left; suggested
+questions, the Precise/Balanced/Exploratory temperature stop, a context-usage
+meter, and attached document-collection chips on the right.*
+
+![Hybrid Search](screenshots/HybridSearch.png)
+*Hybrid Search — semantic and full-text evidence fused with weighted reciprocal
+rank fusion, each row showing its match source and evidence excerpt;
+filterable, exportable to CSV, and independent of the LLM.*
+
+![Knowledge-graph question](screenshots/kg-graph.png)
+*Knowledge graph — a timeline question over the inferred graph. The agent
+runs `read-cypher` against the `InferredEvent` nodes (note the **Run full**
+button for executing the query directly), consults `kg-search` and
+`get-record-text`, then answers with a cited event table and shows the Cypher
+it executed.*
+
+![Document Collections](screenshots/DocumentCollections.png)
+*Document Collections — upload reference documents (PDF, Word, Markdown, HTML,
+PowerPoint, Excel) into private or shared collections and attach them to
+conversations for RAG.*
+
+![Document RAG in a conversation](screenshots/RAG.png)
+*Document RAG — a question over an attached interview transcript (cropped to
+the conversation column; the answer continues below). The retrieved-context
+block shows the distilled search query and the cited passage; the agent also
+consults the graph via tool calls, and the answer cites passages inline.*
+
+![Manage Jobs](screenshots/ManageJobs.png)
+*Manage Jobs (admin) — trigger and monitor the ArchivesSpace extraction and
+knowledge-graph generation jobs, with run history.*
+
 ## Architecture
 
 Ten services deployed by per-service Helm charts (see

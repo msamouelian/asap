@@ -24,12 +24,20 @@ spec:
         - name: asapextractor
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          # Non-secret settings from the ConfigMap.
+          # Non-secret settings: general extractor config + the embedding model.
           envFrom:
             - configMapRef:
                 name: asapextractor-config
+            - configMapRef:
+                name: asapextractor-embedding-config
           # Neo4j connection details from the neo4j chart's Secret.
           env:
+            # Embedding endpoint API key (empty for in-cluster vLLM).
+            - name: EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: asapextractor-embedding-secret
+                  key: embedding-api-key
             - name: NEO4J_URI
               valueFrom:
                 secretKeyRef:

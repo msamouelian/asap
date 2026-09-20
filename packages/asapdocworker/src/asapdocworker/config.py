@@ -21,9 +21,11 @@ NEO4J_PASSWORD: str = os.environ.get("NEO4J_PASSWORD", "")
 
 # vLLM embedding server — same model as the archival semantic search so
 # query-time embeddings (ai.text.embed) are directly comparable.
-VLLM_BASE_URL: str = os.environ.get("VLLM_BASE_URL", "http://vllm-embedding:8000/v1")
+EMBEDDING_BASE_URL: str = os.environ.get("EMBEDDING_BASE_URL", "http://vllm-embedding:8000/v1")
 EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 EMBEDDING_BATCH_SIZE: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "64"))
+# Bearer token for the embedding endpoint; empty for the in-cluster vLLM.
+EMBEDDING_API_KEY: str = os.environ.get("EMBEDDING_API_KEY", "")
 
 # Chunking: docling's HybridChunker is tokenizer-aware; cap below the
 # embedding model's 512-token window to leave room for the contextual prefix.

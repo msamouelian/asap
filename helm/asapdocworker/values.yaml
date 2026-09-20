@@ -7,9 +7,16 @@ secrets:
   # Secret names created by the neo4j and postgres helm charts.
   neo4jSecretName: neo4j-auth
   postgresSecretName: postgres-auth
+  # Embedding endpoint API key (install-charts.sh --embedding-api-key). Leave
+  # empty for the in-cluster vLLM; required when embeddings are hosted.
+  embeddingApiKey: ""
 
+# ── Embedding model (in-cluster vLLM) ────────────────────────────────────────
+# Document chunks must be embedded with the SAME model as the archival corpus
+# so RAG query vectors are comparable. install-charts.sh sets every chart
+# from one --embedding-* pair.
 embedding:
-  vllmBaseUrl: "http://vllm-embedding:8000/v1"
+  baseUrl: "http://vllm-embedding:8000/v1"
   model: "BAAI/bge-small-en-v1.5"
   batchSize: 64
 

@@ -20,16 +20,21 @@ DATABASE_URL: str = os.environ.get(
     "DATABASE_URL", "postgresql://asap:password@localhost:5432/postgres"
 )
 
-# Inference server (OpenAI-compatible; LM Studio in the current deployment).
-# In-cluster jobs reach the host's LM Studio via host.k3d.internal.
-INFERENCE_BASE_URL: str = os.environ.get(
-    "KG_INFERENCE_BASE_URL", "http://localhost:1234/v1"
-)
-INFERENCE_MODEL: str = os.environ.get("KG_INFERENCE_MODEL", "openai/gpt-oss-20b")
-INFERENCE_API_KEY: str = os.environ.get("KG_INFERENCE_API_KEY", "lm-studio")
+# Knowledge-graph LLM (OpenAI-compatible). ONE model serves extraction and
+# adjudication. No defaults: the kggenerator chart supplies these from
+# install-charts.sh --kg-inference-*; KGExtractor fails loudly if unset.
+INFERENCE_BASE_URL: str = os.environ.get("KG_INFERENCE_BASE_URL", "")
+INFERENCE_MODEL: str = os.environ.get("KG_INFERENCE_MODEL", "")
+INFERENCE_API_KEY: str = os.environ.get("KG_INFERENCE_API_KEY", "")
 # Extraction wants repeatability, like every RAG-internal call in ASAP.
+# -1 OMITS the parameter: OpenAI gpt-5-class models reject any non-default
+# temperature (every adjudication 400'd with 0.0 on 2026-09-20).
 INFERENCE_TEMPERATURE: float = float(os.environ.get("KG_INFERENCE_TEMPERATURE", "0.0"))
-# Per-request completion cap; 0 omits the parameter (server default).
+# Reasoning effort; "" omits (LM Studio / gpt-oss). A configured value is
+# also this job's marker for gpt-5-class parameter rules (see _chat).
+INFERENCE_REASONING_EFFORT: str = os.environ.get("KG_INFERENCE_REASONING_EFFORT", "")
+# Per-request completion cap; 0 omits the parameter (server default). Sent
+# as max_tokens, or max_completion_tokens when a reasoning effort is set.
 INFERENCE_MAX_TOKENS: int = int(os.environ.get("KG_INFERENCE_MAX_TOKENS", "0"))
 INFERENCE_TIMEOUT_S: float = float(os.environ.get("KG_INFERENCE_TIMEOUT_S", "600"))
 
@@ -47,9 +52,12 @@ LLM_RETRIES: int = int(os.environ.get("KG_LLM_RETRIES", "2"))
 
 # vLLM embedding server (OpenAI-compatible) — same model as the extractor's
 # note-chunk embeddings so inferred entities are comparable in vector search.
-VLLM_BASE_URL: str = os.environ.get("VLLM_BASE_URL", "http://vllm-embedding:8000/v1")
+EMBEDDING_BASE_URL: str = os.environ.get("EMBEDDING_BASE_URL", "http://vllm-embedding:8000/v1")
 EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
-EMBEDDING_DIMENSIONS: int = 384  # bge-small-en-v1.5; must match vector indexes
+# Must match the extractor's vector indexes (same --embedding-dimensions flag).
+EMBEDDING_DIMENSIONS: int = int(os.environ.get("EMBEDDING_DIMENSIONS", "384"))
+# Bearer token for the embedding endpoint; empty for the in-cluster vLLM.
+EMBEDDING_API_KEY: str = os.environ.get("EMBEDDING_API_KEY", "")
 EMBEDDING_BATCH_SIZE: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "64"))
 
 # Pilot collections, identified by ead_id — the durable, uniqueness-
@@ -76,5 +84,6 @@ PILOT_COLLECTION_EAD_IDS: list[str] = (
         "bak00672",  # Old Colony Railroad Company records
         "bak00357",  # Deed books for Western Rail Road Corporation
         "bak00367",  # Boston and Providence Railroad Corporation records
+        "bak02171",  # Business History Foundation, Inc. Records
     ]
 )

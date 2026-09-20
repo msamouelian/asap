@@ -81,14 +81,15 @@ def _embed(texts: list[str]) -> list[list[float]]:
     last: Exception | None = None
     for attempt in range(3):
         try:
+            payload: dict = {"model": config.EMBEDDING_MODEL, "input": texts}
+            headers: dict[str, str] = {}
+            if config.EMBEDDING_API_KEY:
+                headers["Authorization"] = f"Bearer {config.EMBEDDING_API_KEY}"
+            else:
+                payload["truncate_prompt_tokens"] = -1  # vLLM-only; hosted APIs reject it
             resp = requests.post(
-                f"{config.VLLM_BASE_URL}/embeddings",
-                json={
-                    "model": config.EMBEDDING_MODEL,
-                    "input": texts,
-                    "truncate_prompt_tokens": -1,
-                },
-                timeout=300,
+                f"{config.EMBEDDING_BASE_URL}/embeddings",
+                json=payload, headers=headers, timeout=300,
             )
             resp.raise_for_status()
             data = resp.json()["data"]

@@ -24,7 +24,17 @@ spec:
         - name: asapdocworker
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Embedding model coordinates from a dedicated ConfigMap.
+          envFrom:
+            - configMapRef:
+                name: asapdocworker-embedding-config
           env:
+            # Embedding endpoint API key (empty for in-cluster vLLM).
+            - name: EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: asapdocworker-secret
+                  key: embedding-api-key
             # JOB_ID is injected by asapbackend when cloning this template.
             - name: UPLOAD_ROOT
               value: /uploads
@@ -54,12 +64,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.neo4jSecretName }}
                   key: neo4j-password
-            - name: VLLM_BASE_URL
-              value: {{ .Values.embedding.vllmBaseUrl | quote }}
-            - name: EMBEDDING_MODEL
-              value: {{ .Values.embedding.model | quote }}
-            - name: EMBEDDING_BATCH_SIZE
-              value: {{ .Values.embedding.batchSize | quote }}
             - name: CHUNK_MAX_TOKENS
               value: {{ .Values.processing.chunkMaxTokens | quote }}
             - name: CONVERT_WORKERS

@@ -15,11 +15,51 @@ spec:
     metadata:
       labels:
         app: postgres
+      annotations:
+        # Restart the pod when the Secret changes so the postStart password
+        # sync re-runs with the new value (env-from-secret alone does not
+        # trigger a rollout).
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       containers:
         - name: postgres
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Sync the role password to the Secret on EVERY start. The postgres image
+          # applies POSTGRES_PASSWORD only when initialising an EMPTY data
+          # directory; with a persisted volume a changed Secret otherwise diverges
+          # from the role's real password (2026-09-20). Runs over the local Unix
+          # socket (trust auth) with the container's own env, so it can only set
+          # the password the rest of the stack has already been given. FAIL-OPEN:
+          # bounded wait, always exit 0 — a failing lifecycle hook would kill the
+          # database container. Progress is echoed to the container log.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    log() { echo "[password-sync] $*" > /proc/1/fd/1 2>/dev/null || true; }
+                    i=0
+                    while [ "$i" -lt 60 ]; do
+                      if pg_isready -q -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB" 2>/dev/null; then
+                        # The RAISE LOG lands in Postgres's own server log (container stdout),
+                        # which a hook running as a different user cannot otherwise reach.
+                        if printf '%s\n' "ALTER USER :\"u\" WITH PASSWORD :'pw';" \
+                             "DO \$\$ BEGIN RAISE LOG '[password-sync] role password synced to Secret'; END \$\$;" \
+                             | psql -q -v ON_ERROR_STOP=1 -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+                                    -v u="$POSTGRES_USER" -v pw="$POSTGRES_PASSWORD" >/dev/null 2>&1; then
+                          log "role '$POSTGRES_USER' password synced to Secret"
+                        else
+                          log "WARNING: could not sync role password (non-fatal)"
+                        fi
+                        exit 0
+                      fi
+                      i=$((i+1)); sleep 2
+                    done
+                    log "WARNING: server not ready after 120s; password not synced (non-fatal)"
+                    exit 0
           ports:
             - name: postgresql
               containerPort: 5432

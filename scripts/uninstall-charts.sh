@@ -23,7 +23,7 @@ echo ""
 echo "Uninstalling ASAP helm releases from namespace '${NAMESPACE}'..."
 
 # Reverse of install order — application layer first, infrastructure last.
-for release in asapui asapbackend asapextractor ollama neo4j-mcp postgres neo4j keycloak; do
+for release in asapui asapbackend kggenerator asapextractor asapdocworker neo4j-mcp vllm postgres neo4j keycloak; do
   if helm status "$release" --namespace "$NAMESPACE" > /dev/null 2>&1; then
     echo "  ▶ Uninstalling ${release}..."
     helm uninstall "$release" --namespace "$NAMESPACE" --wait

@@ -23,6 +23,7 @@ import logging
 import re
 
 from asapbackend import mcp
+from asapbackend.config import settings
 
 log = logging.getLogger(__name__)
 
@@ -80,12 +81,15 @@ TOOL_DEFINITION = {
 
 # The canned query. Parameters:
 #   $topic       — raw topic text, embedded for the semantic branches
+#   $embedModel  — embedding model name (settings.embedding_model); must be
+#                  the model the extractor embedded the corpus with
+#   $embedToken  — bearer token for the embedding endpoint (dummy for vLLM)
 #   $luceneQuery — phrase-boosted Lucene query built by _lucene_query()
 #   $limit       — final row cap
 HYBRID_CYPHER = """
 WITH $topic AS query
 WITH query, toFloatList(ai.text.embed(query, 'OpenAI',
-     { token: 'dummy-token', model: 'BAAI/bge-small-en-v1.5' })) AS qv
+     { token: $embedToken, model: $embedModel })) AS qv
 
 // Branch 1: semantic over note chunks. The result row is the note's direct
 // parent (Collection, ArchivalObject, Agent, or DigitalObject); for AO
@@ -299,6 +303,9 @@ async def run_rows(topic: str, limit: int = DEFAULT_LIMIT) -> list[dict]:
             "query": HYBRID_CYPHER,
             "params": {
                 "topic": topic,
+                "embedModel": settings.embedding_model,
+                # The GenAI plugin requires a token; vLLM ignores it.
+                "embedToken": settings.embedding_api_key or "dummy-token",
                 "luceneQuery": _lucene_query(topic),
                 "limit": limit,
             },

@@ -12,10 +12,10 @@
 #     --neo4j-password '<password>' \
 #     --pg-user '<user>' --pg-password '<password>' \
 #     --aspace-user '<user>' --aspace-password '<password>' \
-#     --inference-api-key '<key>' \
-#     --inference-base-url 'http://host.k3d.internal:1234/v1' \
-#     --ingress-host asapbackend.localhost \
-#     --skip-ollama
+#     --keycloak-admin-password '<password>' \
+#     --inference-base-url '<url>' --inference-model '<model>' --inference-api-key '<key>' \
+#     --kg-inference-base-url '<url>' --kg-inference-model '<model>' --kg-inference-api-key '<key>' \
+#     --ui-host asapui.localhost --neo4j-host neo4j.localhost --keycloak-host keycloak.localhost
 
 apiVersion: k3d.io/v1alpha5
 kind: Simple
@@ -46,9 +46,6 @@ volumes:
     nodeFilters:
       - server:0
   - volume: /Users/msamouelian/postgres/data:/postgres-data
-    nodeFilters:
-      - server:0
-  - volume: /Users/msamouelian/ollama/data:/ollama-data
     nodeFilters:
       - server:0
   - volume: /Users/msamouelian/vllm/data:/vllm-data

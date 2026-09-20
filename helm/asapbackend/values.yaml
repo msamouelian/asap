@@ -15,13 +15,15 @@ env:
   oidcRoleClaim: asap_roles
   # Neo4j MCP server endpoint (internal cluster DNS).
   neo4jMcpUrl: http://graphdb-mcp:8080
-  # Inference server — defaults to the in-cluster Ollama deployment (Mode 1).
-  # Override with --set for external providers (Mode 2).
-  inferenceBaseUrl: http://ollama:11434/v1
-  inferenceModel: llama3.1:8b
+  # ── Chat + RAG LLM (OpenAI-compatible) ────────────────────────────────────
+  # One model drives the conversational agent AND the RAG-internal calls
+  # (query distillation, relevance filtering). No defaults on purpose —
+  # provide via install-charts.sh --inference-base-url / --inference-model.
+  inferenceBaseUrl: ""
+  inferenceModel: ""
   # Maximum tokens the model + hardware can hold in its context window.
   # Used to compute context-usage percentage shown in the UI.
-  # Example: gpt-oss-20b on M4 Pro 48GB = 131072; GPT-4o = 128000; Llama3 70B on 4×A100 = 8192
+  # Example: gpt-oss-20b on M4 Pro 48GB = 131072; GPT-5.6 = 400000
   inferenceContextWindowTokens: "131072"
   # Sampling. min_p is a llama.cpp/LM Studio/vLLM extension — the real
   # OpenAI API 400s on it, so set 0 when inferenceBaseUrl is api.openai.com.
@@ -34,6 +36,13 @@ env:
   # Set "none" for OpenAI gpt-5-class models — required to use function
   # tools on /v1/chat/completions.
   inferenceReasoningEffort: ""
+  # ── Embedding model (in-cluster vLLM) ─────────────────────────────────────
+  # Embeds user questions for RAG and the kg-search vector fallback, and is
+  # named in the hybrid-search Cypher so Neo4j's GenAI plugin embeds queries
+  # with the SAME model the extractor used for the corpus. Must match the
+  # vllm chart's model.name — install-charts.sh --embedding-model sets both.
+  embeddingBaseUrl: "http://vllm-embedding:8000/v1"
+  embeddingModel: "BAAI/bge-small-en-v1.5"
   # Safety ceiling for the chat UI's "run full query" button (rows returned
   # by direct read-cypher execution; the UI shows a truncation banner).
   cypherRunMaxRows: "50000"
@@ -42,11 +51,14 @@ env:
   extractorJobName: asapextractor
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
-# Inference API key — provide at install time via --set.
-# Use "ollama" for the in-cluster Ollama server (Mode 1).
-# Use a real API key for external providers (Mode 2).
+# Chat + RAG LLM API key — provide at install time via --set
+# (install-charts.sh --inference-api-key). LM Studio accepts any non-empty
+# token; commercial providers require a real key.
 secrets:
   inferenceApiKey: ""
+  # Embedding endpoint API key (install-charts.sh --embedding-api-key). Leave
+  # empty for the in-cluster vLLM; required when embeddings are hosted.
+  embeddingApiKey: ""
   # Secret names created by the neo4j and postgres helm charts.
   neo4jSecretName: neo4j-auth
   postgresSecretName: postgres-auth

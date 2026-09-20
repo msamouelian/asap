@@ -134,18 +134,21 @@ def _embed_batch(texts: list[str]) -> list[list[float]]:
     Retries transient failures; raises after three attempts so the pipeline
     fails loudly rather than silently skipping embeddings.
     """
-    payload = {
-        "model": config.EMBEDDING_MODEL,
-        "input": texts,
-        # Defensive: prefix + chunk should fit in the model's 512-token
-        # window, but truncate rather than 400-error on the rare overshoot.
-        "truncate_prompt_tokens": -1,
-    }
+    payload: dict[str, Any] = {"model": config.EMBEDDING_MODEL, "input": texts}
+    headers: dict[str, str] = {}
+    if config.EMBEDDING_API_KEY:
+        headers["Authorization"] = f"Bearer {config.EMBEDDING_API_KEY}"
+    else:
+        # vLLM-only: prefix + chunk should fit the model's window, but truncate
+        # rather than 400-error on the rare overshoot. Hosted APIs reject
+        # unknown parameters, so only send it to the (keyless) local server.
+        payload["truncate_prompt_tokens"] = -1
     last_exc: Exception | None = None
     for attempt in range(3):
         try:
             resp = requests.post(
-                f"{config.VLLM_BASE_URL}/embeddings", json=payload, timeout=300
+                f"{config.EMBEDDING_BASE_URL}/embeddings", json=payload,
+                headers=headers, timeout=300,
             )
             resp.raise_for_status()
             data = resp.json()["data"]

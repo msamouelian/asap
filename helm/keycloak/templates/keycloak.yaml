@@ -16,6 +16,12 @@ spec:
     metadata:
       labels:
         app: keycloak
+      annotations:
+        # Restart Keycloak when its Secret changes so KC_DB_PASSWORD is re-read
+        # in step with the keycloak-postgres role sync. (Does NOT change the
+        # admin-console password — that is set at first boot only; see
+        # docs/runbook-passwords.md.)
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       initContainers:
         # Wait for the Keycloak postgres to be ready before starting Keycloak.

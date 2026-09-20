@@ -47,6 +47,23 @@ class ExtractionError(RuntimeError):
 
 class KGExtractor:
     def __init__(self) -> None:
+        # One LLM serves BOTH extraction and adjudication. No defaults: the
+        # kggenerator chart supplies KG_INFERENCE_* (install-charts.sh
+        # --kg-inference-*), so fail loudly rather than call a phantom host.
+        missing = [
+            name for name, value in (
+                ("KG_INFERENCE_BASE_URL", config.INFERENCE_BASE_URL),
+                ("KG_INFERENCE_MODEL", config.INFERENCE_MODEL),
+                ("KG_INFERENCE_API_KEY", config.INFERENCE_API_KEY),
+            ) if not value
+        ]
+        if missing:
+            raise RuntimeError(
+                "Knowledge-graph LLM is not configured — missing "
+                + ", ".join(missing)
+                + ". Provide them via install-charts.sh --kg-inference-base-url / "
+                "--kg-inference-model / --kg-inference-api-key."
+            )
         self._client = httpx.Client(
             base_url=config.INFERENCE_BASE_URL,
             headers={"Authorization": f"Bearer {config.INFERENCE_API_KEY}"},
@@ -66,13 +83,21 @@ class KGExtractor:
     # ------------------------------------------------------------------
 
     def _chat(self, messages: list[dict[str, str]]) -> str:
+        # Same OpenAI-compatibility rules as asapbackend/llm/client.py:
+        # temperature -1 omits the parameter (gpt-5-class rejects non-default
+        # values); a configured reasoning effort is sent and switches the
+        # completion cap to max_completion_tokens (gpt-5-class rejects max_tokens).
         payload: dict[str, Any] = {
             "model": config.INFERENCE_MODEL,
             "messages": messages,
-            "temperature": config.INFERENCE_TEMPERATURE,
         }
+        if config.INFERENCE_TEMPERATURE >= 0:
+            payload["temperature"] = config.INFERENCE_TEMPERATURE
+        if config.INFERENCE_REASONING_EFFORT:
+            payload["reasoning_effort"] = config.INFERENCE_REASONING_EFFORT
         if config.INFERENCE_MAX_TOKENS > 0:
-            payload["max_tokens"] = config.INFERENCE_MAX_TOKENS
+            cap_key = "max_completion_tokens" if config.INFERENCE_REASONING_EFFORT else "max_tokens"
+            payload[cap_key] = config.INFERENCE_MAX_TOKENS
         resp = self._client.post("/chat/completions", json=payload)
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"] or ""

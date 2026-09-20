@@ -32,6 +32,11 @@ endpoint at an external provider.
   entity resolution, and loads the result as an isolated `:Inferred`
   subgraph — every node and edge carrying verbatim quotes and source-record
   provenance. See [docs/kg-conventions.md](docs/kg-conventions.md).
+- **Charts** — the agent answers visualization requests with
+  [Vega-Lite](https://vega.github.io/vega-lite/) specs, which the UI renders
+  in place as interactive charts (bar, line, pie, mosaic) built only from
+  tool results, with SVG/PNG export and a CSV download of the plotted data.
+  After tabular answers it suggests a fitting chart type.
 - **Document RAG** — user-uploaded document collections (e.g. DACS)
   chunked, embedded, and retrieved into chat with calibrated relevance
   gates and passage-level citations.

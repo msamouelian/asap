@@ -231,3 +231,91 @@
 	white-space: nowrap;
 	vertical-align: baseline;
 }
+
+/* ── Vega-Lite charts in assistant messages ─────────────────────────────── */
+.vega-block {
+	margin: 0.75rem 0;
+	border: 1px solid var(--color-sand);
+	border-radius: 0.75rem;
+	background: #fff;
+	overflow: hidden;
+}
+.vega-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.3rem 0.5rem 0.3rem 0.75rem;
+	border-bottom: 1px solid var(--color-sand);
+	background: var(--color-parchment);
+	font-size: 0.72rem;
+	color: var(--color-muted, #8a8071);
+}
+.vega-title {
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	font-size: 0.65rem;
+}
+.vega-btns {
+	display: flex;
+	gap: 0.15rem;
+}
+.vega-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.25rem 0.45rem;
+	border-radius: 4px;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--color-muted, #8a8071);
+	font-size: 0.7rem;
+	line-height: 1;
+	cursor: pointer;
+	transition: background-color 0.15s, color 0.15s;
+}
+.vega-btn:hover {
+	background: var(--color-sand);
+	color: var(--color-navy);
+}
+.vega-btn[aria-expanded="true"] {
+	color: var(--color-navy);
+	border-color: var(--color-sand);
+}
+.vega-chart {
+	padding: 0.75rem 0.75rem 0.5rem;
+	min-height: 3rem;
+	overflow-x: auto;
+}
+.vega-chart .vega-embed {
+	width: 100%;
+}
+.vega-chart svg {
+	max-width: 100%;
+}
+.vega-loading {
+	font-size: 0.75rem;
+	font-style: italic;
+	color: var(--color-muted, #8a8071);
+}
+.vega-error {
+	font-size: 0.75rem;
+	color: #b91c1c;
+	background: #fef2f2;
+	border-radius: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	white-space: pre-wrap;
+}
+.vega-spec {
+	border-top: 1px solid var(--color-sand);
+}
+.vega-spec .code-block-wrapper {
+	margin: 0;
+}
+.vega-spec pre {
+	margin: 0;
+	border-radius: 0;
+	max-height: 22rem;
+	overflow: auto;
+}

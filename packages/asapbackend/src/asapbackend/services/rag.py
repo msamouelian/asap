@@ -114,14 +114,15 @@ RETURN DISTINCT ch.id AS id, ch.text AS text, ch.page_no AS page_no,
 
 
 async def _embed_query(text: str) -> list[float]:
+    payload: dict = {"model": settings.embedding_model, "input": [text]}
+    headers: dict[str, str] = {}
+    if settings.embedding_api_key:
+        headers["Authorization"] = f"Bearer {settings.embedding_api_key}"
+    else:
+        payload["truncate_prompt_tokens"] = -1  # vLLM-only; hosted APIs reject it
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{settings.vllm_base_url}/embeddings",
-            json={
-                "model": settings.embedding_model,
-                "input": [text],
-                "truncate_prompt_tokens": -1,
-            },
+            f"{settings.embedding_base_url}/embeddings", json=payload, headers=headers,
         )
         resp.raise_for_status()
         return resp.json()["data"][0]["embedding"]

@@ -28,9 +28,16 @@ WIPE_GRAPH: bool = os.environ.get("WIPE_GRAPH", "true").strip().lower() in ("tru
 
 # vLLM embedding server (OpenAI-compatible) used by the embedding phase.
 # The default is the in-cluster service; override for local runs.
-VLLM_BASE_URL: str = os.environ.get("VLLM_BASE_URL", "http://vllm-embedding:8000/v1")
+EMBEDDING_BASE_URL: str = os.environ.get("EMBEDDING_BASE_URL", "http://vllm-embedding:8000/v1")
 EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 # bge-small-en-v1.5 output dimensionality; must match the vector indexes.
-EMBEDDING_DIMENSIONS: int = 384
+# Vector size the model produces; every vector index is created with it, so
+# changing the model means changing this AND re-running extraction (indexes
+# are rebuilt from scratch each run). Flows from install-charts.sh --embedding-dimensions.
+EMBEDDING_DIMENSIONS: int = int(os.environ.get("EMBEDDING_DIMENSIONS", "384"))
+# Bearer token for the embedding endpoint. Empty for the in-cluster vLLM;
+# required for hosted APIs. Its presence also switches off vLLM-only request
+# parameters (truncate_prompt_tokens), which hosted APIs reject.
+EMBEDDING_API_KEY: str = os.environ.get("EMBEDDING_API_KEY", "")
 # Texts per embedding request. CPU inference: keep moderate.
 EMBEDDING_BATCH_SIZE: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "64"))

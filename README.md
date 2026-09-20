@@ -5,7 +5,8 @@ extracts the full descriptive record from an
 [ArchivesSpace](https://archivesspace.org/) repository into a Neo4j graph,
 layers an AI-generated knowledge graph of entities and relationships on top,
 and lets archivists and researchers query all of it in plain language
-through a chat interface backed by a locally hosted open-weight LLM.
+through a chat interface backed by any OpenAI-compatible LLM — local
+open-weight or commercial.
 
 Everything runs in a local [k3d](https://k3d.io/) Kubernetes cluster; no
 archival data leaves the machine unless you deliberately point the inference
@@ -13,8 +14,9 @@ endpoint at an external provider.
 
 ## What it does
 
-- **Conversational analytics** — an agentic chat loop (gpt-oss-20b via an
-  OpenAI-compatible server) with purpose-built tools: read-only Cypher, a
+- **Conversational analytics** — an agentic chat loop (any OpenAI-compatible
+  model; gpt-oss-20b locally or GPT-5.6 via API in the pilot) with
+  purpose-built tools: read-only Cypher, a
   server-side hybrid search, one-call record text retrieval, and knowledge
   graph lookups. The system prompt encodes archival terminology and query
   strategy; a tool allowlist and validator enforce read-only access.
@@ -88,8 +90,10 @@ Ten services deployed by per-service Helm charts (see
 | `keycloak` (+ its own postgres) | OIDC authentication — public SPA client with PKCE, roles via JWT claim |
 | `vllm` | bge-small-en-v1.5 embedding server |
 
-Chat inference is served from outside the cluster (LM Studio on the host at
-`host.k3d.internal:1234` by default) or any OpenAI-compatible endpoint.
+LLM inference is served from outside the cluster by any OpenAI-compatible
+endpoint (a commercial API, or LM Studio on the host at
+`host.k3d.internal:1234`); the chat+RAG model and the knowledge-graph model
+are configured independently. Only the embedding model runs in-cluster.
 
 ## Repository layout
 
@@ -112,10 +116,21 @@ Python packages form a single [uv](https://docs.astral.sh/uv/) workspace.
 
 ## Getting started
 
-Prerequisites: Docker, k3d, kubectl, helm, uv, Node 20+, and an
-OpenAI-compatible inference server (LM Studio with `openai/gpt-oss-20b`
-works well on Apple Silicon). You also need read-only API credentials for
-an ArchivesSpace instance.
+Prerequisites: Docker, k3d, kubectl, helm, uv, Node 20+, and access to an
+OpenAI-compatible LLM endpoint — a commercial API, or a local server such as
+LM Studio (`openai/gpt-oss-20b` works well on Apple Silicon). You also need
+read-only API credentials for an ArchivesSpace instance.
+
+ASAP uses models in three independently configurable places, each set by its
+own group of install flags: the **chat + RAG LLM** (`--inference-*`, one
+model for the agent and the RAG-internal calls), the **knowledge-graph LLM**
+(`--kg-inference-*`, extraction and adjudication), and the **embedding
+model** (`--embedding-*`, defaults to the in-cluster vLLM serving
+`BAAI/bge-small-en-v1.5`; `--embedding-api-key`, `--embedding-dimensions`,
+and `--embedding-batch-size` allow a hosted embedding API). There are no
+defaults for the two LLMs — by design, a missing coordinate fails loudly
+rather than pointing at a phantom server. Changing the embedding model or its
+dimensions requires re-running extraction, which rebuilds every vector index.
 
 ```bash
 # 1. Create the cluster (persistent volumes live on the host filesystem)
@@ -132,11 +147,13 @@ an ArchivesSpace instance.
   --neo4j-password '<password>' \
   --pg-user '<user>' --pg-password '<password>' \
   --aspace-user '<username>' --aspace-password '<password>' \
-  --inference-api-key '<key>' \
   --keycloak-admin-password '<password>' \
-  --inference-base-url 'http://host.k3d.internal:1234/v1' \
-  --inference-model 'openai/gpt-oss-20b' \
-  --ui-host asapui.localhost --keycloak-host keycloak.localhost
+  --inference-base-url 'https://api.openai.com/v1' --inference-model 'gpt-5.6-luna' \
+  --inference-api-key '<key>' --inference-reasoning-effort none \
+  --inference-min-p 0 --inference-temperature -1 \
+  --kg-inference-base-url 'https://api.openai.com/v1' --kg-inference-model 'gpt-5.6-luna' \
+  --kg-inference-api-key '<key>' --kg-inference-temperature -1 \
+  --ui-host asapui.localhost --neo4j-host neo4j.localhost --keycloak-host keycloak.localhost
 
 # 5. Create users in Keycloak, then open https://asapui.localhost
 #    (.localhost hostnames resolve natively — no /etc/hosts entries needed)

@@ -8,8 +8,27 @@ _client: AsyncOpenAI | None = None
 
 
 def get_llm_client() -> AsyncOpenAI:
+    """Shared client for the chat agent AND the RAG-internal calls.
+
+    Fails loudly rather than pointing at a phantom default: every
+    coordinate must arrive from the asapbackend chart (INFERENCE_* env).
+    """
     global _client
     if _client is None:
+        missing = [
+            name for name, value in (
+                ("INFERENCE_BASE_URL", settings.inference_base_url),
+                ("INFERENCE_MODEL", settings.inference_model),
+                ("INFERENCE_API_KEY", settings.inference_api_key),
+            ) if not value
+        ]
+        if missing:
+            raise RuntimeError(
+                "Chat/RAG LLM is not configured — missing "
+                + ", ".join(missing)
+                + ". Provide them via install-charts.sh "
+                "--inference-base-url / --inference-model / --inference-api-key."
+            )
         _client = AsyncOpenAI(
             base_url=settings.inference_base_url,
             api_key=settings.inference_api_key,

@@ -31,9 +31,14 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Inference server (OpenAI-compatible)
     # -------------------------------------------------------------------------
-    inference_base_url: str = "http://ollama:11434/v1"
-    inference_model: str = "llama3.1:8b"
-    inference_api_key: str = "ollama"
+    # No defaults on purpose: the asapbackend chart supplies these
+    # (INFERENCE_* from asapbackend-inference-config, the key from
+    # asapbackend-secret) and get_llm_client() fails loudly if any is
+    # missing. ONE client serves the chat agent and the RAG-internal calls
+    # (query distillation, relevance filter).
+    inference_base_url: str = ""
+    inference_model: str = ""
+    inference_api_key: str = ""
 
     # -------------------------------------------------------------------------
     # Neo4j MCP server
@@ -53,7 +58,7 @@ class Settings(BaseSettings):
 
     # -------------------------------------------------------------------------
     # RAG (document collections)
-    # vllm_base_url: embedding server, same model as ingestion so query and
+    # embedding_base_url: embedding server, same model as ingestion so query and
     # chunk vectors are comparable. Gate: inject when top cosine >= the
     # semantic floor OR top lexical >= the lexical floor. Floors calibrated
     # empirically (2026-07) across the test corpora: on-topic queries scored
@@ -63,8 +68,13 @@ class Settings(BaseSettings):
     # Every retrieval logs its score curve; recalibrate from those logs.
     # -------------------------------------------------------------------------
     rag_enabled: bool = True
-    vllm_base_url: str = "http://vllm-embedding:8000/v1"
+    embedding_base_url: str = "http://vllm-embedding:8000/v1"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
+    # Bearer token for the embedding endpoint (EMBEDDING_API_KEY, from
+    # asapbackend-secret). Empty for the in-cluster vLLM; required for hosted
+    # APIs. Also passed to Neo4j's GenAI plugin for hybrid-search query
+    # embedding, and its presence switches off vLLM-only request parameters.
+    embedding_api_key: str = ""
     rag_semantic_candidates: int = 30
     rag_max_chunks: int = 8
     rag_semantic_floor: float = 0.82

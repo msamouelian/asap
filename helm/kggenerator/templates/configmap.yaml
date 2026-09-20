@@ -1,3 +1,4 @@
+# ── General job settings ─────────────────────────────────────────────────────
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,8 +7,35 @@ metadata:
     app: kggenerator
     chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 data:
-  KG_INFERENCE_BASE_URL: {{ .Values.inference.baseUrl | quote }}
-  KG_INFERENCE_MODEL: {{ .Values.inference.model | quote }}
-  VLLM_BASE_URL: {{ .Values.vllm.baseUrl | quote }}
   # Re-extract collections that already have artifacts (expensive).
   KG_FORCE: {{ .Values.force | default false | quote }}
+---
+# ── Knowledge-graph LLM ──────────────────────────────────────────────────────
+# Used for BOTH extraction and adjudication. API key lives in kggenerator-secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kggenerator-inference-config
+  labels:
+    app: kggenerator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  KG_INFERENCE_BASE_URL:         {{ .Values.inference.baseUrl | quote }}
+  KG_INFERENCE_MODEL:            {{ .Values.inference.model | quote }}
+  {{- /* defaults guard --reuse-values upgrades from releases that predate these keys */}}
+  KG_INFERENCE_TEMPERATURE:      {{ .Values.inference.temperature | default "0" | quote }}
+  KG_INFERENCE_REASONING_EFFORT: {{ .Values.inference.reasoningEffort | default "" | quote }}
+---
+# ── Embedding model ──────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kggenerator-embedding-config
+  labels:
+    app: kggenerator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  EMBEDDING_BASE_URL:   {{ .Values.embedding.baseUrl | default "http://vllm-embedding:8000/v1" | quote }}
+  EMBEDDING_MODEL:      {{ .Values.embedding.model | default "BAAI/bge-small-en-v1.5" | quote }}
+  EMBEDDING_DIMENSIONS: {{ .Values.embedding.dimensions | default 384 | quote }}
+  EMBEDDING_BATCH_SIZE: {{ .Values.embedding.batchSize | default 64 | quote }}

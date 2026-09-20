@@ -25,18 +25,29 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
 
-          # Non-sensitive configuration from the ConfigMap.
+          # Non-sensitive configuration, one ConfigMap per concern:
+          # general settings, the chat+RAG LLM, and the embedding model.
           envFrom:
             - configMapRef:
                 name: asapbackend-config
+            - configMapRef:
+                name: asapbackend-inference-config
+            - configMapRef:
+                name: asapbackend-embedding-config
 
           env:
-            # Inference API key.
+            # Chat + RAG LLM API key.
             - name: INFERENCE_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: asapbackend-secret
                   key: inference-api-key
+            # Embedding endpoint API key (empty for in-cluster vLLM).
+            - name: EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: asapbackend-secret
+                  key: embedding-api-key
 
             # Database connection URL from the postgres chart's Secret.
             - name: DATABASE_URL

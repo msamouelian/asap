@@ -94,10 +94,15 @@ async def _read(query: str, **params) -> list[dict]:
 
 async def _embed(text: str) -> list[float] | None:
     try:
+        headers = (
+            {"Authorization": f"Bearer {settings.embedding_api_key}"}
+            if settings.embedding_api_key else {}
+        )
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                f"{settings.vllm_base_url}/embeddings",
+                f"{settings.embedding_base_url}/embeddings",
                 json={"model": settings.embedding_model, "input": [text]},
+                headers=headers,
             )
             resp.raise_for_status()
             return resp.json()["data"][0]["embedding"]

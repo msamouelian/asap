@@ -190,7 +190,11 @@ class Neo4jLoader:
             texts.append(". ".join(parts))
             ids.append(node_id_of[e["id"]])
 
-        client = httpx.Client(base_url=config.VLLM_BASE_URL, timeout=120)
+        client = httpx.Client(
+            base_url=config.EMBEDDING_BASE_URL, timeout=120,
+            headers={"Authorization": f"Bearer {config.EMBEDDING_API_KEY}"}
+            if config.EMBEDDING_API_KEY else {},
+        )
         rows: list[dict[str, Any]] = []
         for i in range(0, len(texts), config.EMBEDDING_BATCH_SIZE):
             batch = texts[i:i + config.EMBEDDING_BATCH_SIZE]

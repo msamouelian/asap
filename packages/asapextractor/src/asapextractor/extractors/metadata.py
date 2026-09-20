@@ -9,6 +9,7 @@ queries.
 import logging
 from typing import Any
 
+from asapextractor import config
 from asapextractor.extractors.base import BaseExtractor
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ NODE_SCHEMAS: list[dict[str, Any]] = [
             "A retrieval-sized slice (~1,000 characters) of an IndexableNote's content, created "
             "by the embedding phase for semantic search. Every IndexableNote has at least one "
             "chunk; long notes have several, in seq order, with overlapping boundaries. Each "
-            "chunk carries a 384-dimensional embedding covered by the note_chunk_embedding "
+            f"chunk carries a {config.EMBEDDING_DIMENSIONS}-dimensional embedding covered by the note_chunk_embedding "
             "vector index. Semantic searches over note content should target NoteChunk, then "
             "traverse (parent)-[:HAS_NOTE]->(:Note)-[:HAS_CHUNK]->(chunk) back to the parent "
             "record. Derived data: rebuilt on every extraction run, not sourced from ArchivesSpace."
@@ -784,8 +785,8 @@ PROPERTY_SCHEMAS: list[dict[str, Any]] = [
         "id": "Collection.embedding",
         "node_label": "Collection",
         "property": "embedding",
-        "description": "384-dimensional semantic embedding of the collection's title and industry path, covered by the collection_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
-        "data_type": "Vector (384 floats)",
+        "description": f"{config.EMBEDDING_DIMENSIONS}-dimensional semantic embedding of the collection's title and industry path, covered by the collection_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
+        "data_type": f"Vector ({config.EMBEDDING_DIMENSIONS} floats)",
         "required": False,
     },
     # Note
@@ -858,8 +859,8 @@ PROPERTY_SCHEMAS: list[dict[str, Any]] = [
         "id": "NoteChunk.embedding",
         "node_label": "NoteChunk",
         "property": "embedding",
-        "description": "384-dimensional semantic embedding of this chunk's text with contextual prefix (parent record and note type), covered by the note_chunk_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
-        "data_type": "Vector (384 floats)",
+        "description": f"{config.EMBEDDING_DIMENSIONS}-dimensional semantic embedding of this chunk's text with contextual prefix (parent record and note type), covered by the note_chunk_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
+        "data_type": f"Vector ({config.EMBEDDING_DIMENSIONS} floats)",
         "required": True,
     },
     # Agent
@@ -963,8 +964,8 @@ PROPERTY_SCHEMAS: list[dict[str, Any]] = [
         "id": "Agent.embedding",
         "node_label": "Agent",
         "property": "embedding",
-        "description": "384-dimensional semantic embedding of the agent's display name, covered by the agent_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
-        "data_type": "Vector (384 floats)",
+        "description": f"{config.EMBEDDING_DIMENSIONS}-dimensional semantic embedding of the agent's display name, covered by the agent_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
+        "data_type": f"Vector ({config.EMBEDDING_DIMENSIONS} floats)",
         "required": False,
     },
     # Extent
@@ -1021,8 +1022,8 @@ PROPERTY_SCHEMAS: list[dict[str, Any]] = [
         "id": "ArchivalObject.embedding",
         "node_label": "ArchivalObject",
         "property": "embedding",
-        "description": "384-dimensional semantic embedding of the archival object's title with its collection context, covered by the archival_object_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
-        "data_type": "Vector (384 floats)",
+        "description": f"{config.EMBEDDING_DIMENSIONS}-dimensional semantic embedding of the archival object's title with its collection context, covered by the archival_object_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
+        "data_type": f"Vector ({config.EMBEDDING_DIMENSIONS} floats)",
         "required": False,
     },
     {
@@ -1954,8 +1955,8 @@ PROPERTY_SCHEMAS: list[dict[str, Any]] = [
         "id": "DocumentChunk.embedding",
         "node_label": "DocumentChunk",
         "property": "embedding",
-        "description": "384-dimensional semantic embedding of the chunk text with document context, covered by the document_chunk_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
-        "data_type": "Vector (384 floats)",
+        "description": f"{config.EMBEDDING_DIMENSIONS}-dimensional semantic embedding of the chunk text with document context, covered by the document_chunk_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
+        "data_type": f"Vector ({config.EMBEDDING_DIMENSIONS} floats)",
         "required": True,
     },
 ]

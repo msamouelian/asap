@@ -3,7 +3,7 @@
 # Compatible with both bash and zsh.
 #
 # The Mac host directories that back the persistent volumes are created if
-# they do not exist. Existing data (Neo4j, Postgres, Ollama model cache)
+# they do not exist. Existing data (Neo4j, Postgres, vLLM model cache, Keycloak)
 # is preserved across cluster recreations because it lives on the Mac
 # filesystem, not inside the k3d node container.
 #
@@ -70,7 +70,6 @@ echo ""
 echo "▶ Creating host data directories (skipped if already present)..."
 mkdir -p /Users/msamouelian/neo4j/data
 mkdir -p /Users/msamouelian/postgres/data
-mkdir -p /Users/msamouelian/ollama/data
 mkdir -p /Users/msamouelian/vllm/data
 mkdir -p /Users/msamouelian/keycloak/data
 echo "✓ Host directories ready."
@@ -115,15 +114,16 @@ echo ""
 echo "Next step — install TLS then helm charts:"
 echo ""
 echo "  ./scripts/install-charts.sh \\"
-echo "    --neo4j-password      '<password>'                     \\"
-echo "    --pg-user             '<user>'                         \\"
-echo "    --pg-password         '<password>'                     \\"
-echo "    --aspace-user         '<username>'                     \\"
-echo "    --aspace-password     '<password>'                     \\"
-echo "    --inference-api-key   '<key>'                          \\"
-echo "    --inference-base-url  'http://host.k3d.internal:1234/v1' \\"
-echo "    --ingress-host        asapbackend.localhost                \\"
-echo "    --skip-ollama"
+echo "    --neo4j-password          '<password>'   \\"
+echo "    --pg-user                 '<user>'       \\"
+echo "    --pg-password             '<password>'   \\"
+echo "    --aspace-user             '<username>'   \\"
+echo "    --aspace-password         '<password>'   \\"
+echo "    --keycloak-admin-password '<password>'   \\"
+echo "    --inference-base-url      '<url>'  --inference-model    '<model>'  --inference-api-key    '<key>' \\"
+echo "    --kg-inference-base-url   '<url>'  --kg-inference-model '<model>'  --kg-inference-api-key '<key>' \\"
+echo "    --ui-host asapui.localhost --neo4j-host neo4j.localhost --keycloak-host keycloak.localhost"
 echo ""
-echo "  Note: host.k3d.internal resolves to your Mac from inside the cluster."
-echo "  Replace port 1234 with your LMStudio port."
+echo "  --inference-*    = chat + RAG LLM;  --kg-inference-* = knowledge-graph LLM."
+echo "  Embeddings default to the in-cluster vLLM (override with --embedding-*)."
+echo "  host.k3d.internal resolves to your Mac from inside the cluster (LM Studio: http://host.k3d.internal:1234/v1)."

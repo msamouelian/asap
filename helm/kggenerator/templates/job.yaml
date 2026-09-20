@@ -26,9 +26,14 @@ spec:
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["all"]
+          # One ConfigMap per concern: job settings, the KG LLM, the embedding model.
           envFrom:
             - configMapRef:
                 name: kggenerator-config
+            - configMapRef:
+                name: kggenerator-inference-config
+            - configMapRef:
+                name: kggenerator-embedding-config
           env:
             - name: NEO4J_URI
               valueFrom:
@@ -50,8 +55,15 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.postgres.secretName }}
                   key: postgres-url
+            # Knowledge-graph LLM API key from this chart's own Secret.
             - name: KG_INFERENCE_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.inference.apiKeySecretName }}
-                  key: {{ .Values.inference.apiKeySecretKey }}
+                  name: kggenerator-secret
+                  key: inference-api-key
+            # Embedding endpoint API key (empty for in-cluster vLLM).
+            - name: EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kggenerator-secret
+                  key: embedding-api-key

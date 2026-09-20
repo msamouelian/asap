@@ -1,0 +1,13 @@
+# ── Embedding model ──────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: asapextractor-embedding-config
+  labels:
+    app: asapextractor
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  EMBEDDING_BASE_URL:   {{ .Values.embedding.baseUrl | default "http://vllm-embedding:8000/v1" | quote }}
+  EMBEDDING_MODEL:      {{ .Values.embedding.model | default "BAAI/bge-small-en-v1.5" | quote }}
+  EMBEDDING_DIMENSIONS: {{ .Values.embedding.dimensions | default 384 | quote }}
+  EMBEDDING_BATCH_SIZE: {{ .Values.embedding.batchSize | default 64 | quote }}

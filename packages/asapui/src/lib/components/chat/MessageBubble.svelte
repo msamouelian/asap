@@ -3,6 +3,11 @@
 	import { ui } from '$lib/stores/ui.svelte';
 	import type { DisplayMessage, RagMsg, ThinkingMsg } from '$lib/stores/chat.svelte';
 	import ToolCallBlock from './ToolCallBlock.svelte';
+	import type { Result as VegaResult } from 'vega-embed';
+	import {
+		parseVegaSpec, vegaBlockHtml, embedChart, chartRows, rowsToCsv,
+		downloadBlob, downloadImage, chartFileStem, escapeHtml,
+	} from '$lib/vega';
 
 	const { msg }: { msg: DisplayMessage } = $props();
 
@@ -11,7 +16,12 @@
 	renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
 		const langClass = lang ? ` class="language-${lang}"` : '';
 		const escaped   = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		return `<div class="code-block-wrapper"><button class="copy-code-btn" title="Copy code" aria-label="Copy code"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><pre><code${langClass}>${escaped}</code></pre></div>`;
+		const codeHtml = `<div class="code-block-wrapper"><button class="copy-code-btn" title="Copy code" aria-label="Copy code"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><pre><code${langClass}>${escaped}</code></pre></div>`;
+		// A fenced Vega-Lite spec becomes a chart container; the code block is
+		// kept inside it (collapsed) as the chart's viewable/copyable source.
+		// While the fence is still streaming the JSON is incomplete, parses as
+		// null, and renders as a plain code block until it completes.
+		return parseVegaSpec(text, lang) ? vegaBlockHtml(codeHtml) : codeHtml;
 	};
 
 	// ── Custom renderer: wrap tables with a CSV export button ────────────────
@@ -96,6 +106,11 @@
 	$effect(() => {
 		if (!proseEl) return;
 		void html(); // track html changes to re-attach after streaming updates
+		// Charts are drawn only once the response has finished streaming: every
+		// token replaces the {@html} DOM, and re-embedding a chart per token
+		// would be wasteful. Reading msg.streaming here re-runs this effect
+		// when the turn completes.
+		const streaming = msg.kind === 'assistant' && !!msg.streaming;
 
 		// Open all links (e.g. ArchivesSpace record links) in a new tab rather
 		// than navigating away from the chat.
@@ -157,6 +172,53 @@
 			btn.addEventListener('click', handler);
 			cleanups.push(() => btn.removeEventListener('click', handler));
 		});
+
+		// ── Vega-Lite charts ────────────────────────────────────────────────
+		if (streaming) {
+			proseEl.querySelectorAll<HTMLElement>('.vega-loading').forEach(el => {
+				el.textContent = 'Chart renders when the response completes…';
+			});
+		} else {
+			proseEl.querySelectorAll<HTMLElement>('.vega-block').forEach(block => {
+				const chartEl = block.querySelector<HTMLElement>('.vega-chart');
+				const specEl  = block.querySelector<HTMLElement>('.vega-spec');
+				const codeEl  = specEl?.querySelector<HTMLElement>('code');
+				if (!chartEl || !specEl || !codeEl) return;
+				const spec = parseVegaSpec(codeEl.textContent ?? '', 'vega-lite');
+				if (!spec) return;
+
+				let result: VegaResult | null = null;
+				let disposed = false;
+				embedChart(chartEl, spec)
+					.then(r => { if (disposed) r.finalize(); else result = r; })
+					.catch((err: unknown) => {
+						const detail = err instanceof Error ? err.message : String(err);
+						chartEl.innerHTML = `<div class="vega-error">Chart could not be rendered: ${escapeHtml(detail)}</div>`;
+						specEl.hidden = false;
+					});
+				cleanups.push(() => { disposed = true; result?.finalize(); });
+
+				const on = (sel: string, fn: (btn: HTMLButtonElement) => void) => {
+					const btn = block.querySelector<HTMLButtonElement>(sel);
+					if (!btn) return;
+					const handler = () => fn(btn);
+					btn.addEventListener('click', handler);
+					cleanups.push(() => btn.removeEventListener('click', handler));
+				};
+				const stem = () => chartFileStem(spec);
+				on('.vega-csv-btn', () => {
+					if (!result) return;
+					const csv = rowsToCsv(chartRows(spec, result));
+					downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${stem()}.csv`);
+				});
+				on('.vega-svg-btn', () => { if (result) void downloadImage(result, 'svg', `${stem()}.svg`); });
+				on('.vega-png-btn', () => { if (result) void downloadImage(result, 'png', `${stem()}.png`); });
+				on('.vega-spec-btn', btn => {
+					specEl.hidden = !specEl.hidden;
+					btn.setAttribute('aria-expanded', String(!specEl.hidden));
+				});
+			});
+		}
 
 		return () => cleanups.forEach(c => c());
 	});

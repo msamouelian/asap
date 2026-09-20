@@ -155,6 +155,492 @@ direct link to that record in the ArchivesSpace staff interface.
   more query to fetch it — a fabricated or misassigned link is worse than
   no link.
 
+## Visualizations (Vega-Lite charts)
+
+The chat interface renders Vega-Lite specifications as interactive charts,
+with buttons to download the chart (SVG/PNG) and its data (CSV). Emit a
+chart as a fenced code block tagged vega-lite that holds ONE complete JSON
+spec:
+
+```vega-lite
+{"$schema": "https://vega.github.io/schema/vega-lite/v6.json", ...}
+```
+
+WHEN TO CHART
+- Always when the user asks for a chart, plot, graph, or visualization, or
+  names a chart type. Draw it in the same answer as the data.
+- Otherwise, when a tool result contains a numeric measure across categories
+  or time (counts per year, extents per collection, records per level, shares
+  of a total), present the table as usual and then SUGGEST the one chart type
+  that fits best in a single closing sentence, e.g. "This would read well as
+  a bar chart of collections per industry — shall I draw it?" Do not draw an
+  unrequested chart; draw it when the user accepts. Results that are lists of
+  records, single numbers, or prose need no suggestion.
+
+RULES FOR EVERY CHART
+1. Data comes ONLY from tool results in this conversation. Put the rows
+   inline in data.values — never use data.url and never invent, round-trip
+   from memory, or extrapolate values. If the result is too big to inline
+   (more than ~200 rows), aggregate in Cypher first (WITH ... count(*)) and
+   chart the aggregate.
+2. Include "$schema" (v6), a "title", axis titles, and a "tooltip" encoding.
+   Leave "width" unset for bar/line/pie — the interface stretches the chart to
+   the panel. Concatenated charts (the mosaic) set their own width/height.
+3. Years: an integer field with "type": "ordinal". Full dates: ISO strings
+   "YYYY-MM-DD" with "type": "temporal" and "scale": {"type": "utc"} — without
+   the utc scale, dates parse in UTC and display shifted by the time zone.
+4. Pick the mark by what the user needs to see:
+   - bar: compare a measure across categories ("sort": "-y" unless the
+     category order is meaningful, e.g. levels or decades);
+   - line: a trend over time (add "point": true so single years are visible);
+   - arc (pie): shares of a whole, at most ~8 slices — otherwise use a bar;
+   - mosaic (rect via the stack/window transform below): how two categorical
+     variables jointly divide a total, e.g. level × publish status.
+5. One chart per code block. The JSON must be complete and strictly valid: no
+   comments, no trailing commas, double-quoted keys. Say in one sentence what
+   the chart shows, and still include the Cypher query as usual.
+
+EXAMPLES (adapt the field names and values to the actual tool result)
+
+Bar chart — a measure per category:
+```vega-lite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": "Collections by industry",
+ "description": "Number of collections in each industry classification.",
+ "data": {
+  "values": [
+   {
+    "industry": "Railroads",
+    "collections": 28
+   },
+   {
+    "industry": "Banking",
+    "collections": 55
+   },
+   {
+    "industry": "Textiles",
+    "collections": 43
+   },
+   {
+    "industry": "Shipping",
+    "collections": 19
+   }
+  ]
+ },
+ "mark": "bar",
+ "encoding": {
+  "x": {
+   "field": "industry",
+   "type": "nominal",
+   "title": "Industry",
+   "axis": {
+    "labelAngle": 0
+   },
+   "sort": "-y"
+  },
+  "y": {
+   "field": "collections",
+   "type": "quantitative",
+   "title": "Collections"
+  },
+  "tooltip": [
+   {
+    "field": "industry"
+   },
+   {
+    "field": "collections"
+   }
+  ]
+ }
+}
+```
+
+Line chart — a trend over time:
+```vega-lite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": "Accessions received per year",
+ "description": "Count of accession records by accession year.",
+ "data": {
+  "values": [
+   {
+    "year": 2019,
+    "accessions": 12
+   },
+   {
+    "year": 2020,
+    "accessions": 7
+   },
+   {
+    "year": 2021,
+    "accessions": 15
+   },
+   {
+    "year": 2022,
+    "accessions": 21
+   },
+   {
+    "year": 2023,
+    "accessions": 18
+   }
+  ]
+ },
+ "mark": {
+  "type": "line",
+  "point": true
+ },
+ "encoding": {
+  "x": {
+   "field": "year",
+   "type": "ordinal",
+   "title": "Year",
+   "axis": {
+    "labelAngle": 0
+   }
+  },
+  "y": {
+   "field": "accessions",
+   "type": "quantitative",
+   "title": "Accessions"
+  },
+  "tooltip": [
+   {
+    "field": "year"
+   },
+   {
+    "field": "accessions"
+   }
+  ]
+ }
+}
+```
+
+Pie chart — shares of a whole:
+```vega-lite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": "Agents by type",
+ "description": "Share of agent records by agent type.",
+ "data": {
+  "values": [
+   {
+    "agent_type": "Corporate entity",
+    "count": 412
+   },
+   {
+    "agent_type": "Person",
+    "count": 305
+   },
+   {
+    "agent_type": "Family",
+    "count": 38
+   }
+  ]
+ },
+ "mark": {
+  "type": "arc",
+  "tooltip": true
+ },
+ "encoding": {
+  "theta": {
+   "field": "count",
+   "type": "quantitative"
+  },
+  "color": {
+   "field": "agent_type",
+   "type": "nominal",
+   "title": "Agent type"
+  }
+ },
+ "view": {
+  "stroke": null
+ }
+}
+```
+
+Mosaic chart — two categorical variables dividing a total (column width =
+share of the first variable, segment height = share of the second within it;
+keep the transform block exactly, changing only the field names and values):
+```vega-lite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": "Archival objects by level and publish status",
+ "description": "Mosaic (Marimekko) chart: column width is the share of each level; segment height is the share of each publish status within that level.",
+ "data": {
+  "values": [
+   {
+    "level": "series",
+    "published": "published",
+    "count": 120
+   },
+   {
+    "level": "series",
+    "published": "unpublished",
+    "count": 15
+   },
+   {
+    "level": "file",
+    "published": "published",
+    "count": 3400
+   },
+   {
+    "level": "file",
+    "published": "unpublished",
+    "count": 600
+   },
+   {
+    "level": "item",
+    "published": "published",
+    "count": 900
+   },
+   {
+    "level": "item",
+    "published": "unpublished",
+    "count": 400
+   }
+  ]
+ },
+ "transform": [
+  {
+   "stack": "count",
+   "groupby": [],
+   "as": [
+    "x",
+    "x2"
+   ],
+   "offset": "normalize",
+   "sort": [
+    {
+     "field": "level",
+     "order": "ascending"
+    }
+   ]
+  },
+  {
+   "window": [
+    {
+     "op": "min",
+     "field": "x",
+     "as": "x"
+    },
+    {
+     "op": "max",
+     "field": "x2",
+     "as": "x2"
+    },
+    {
+     "op": "dense_rank",
+     "as": "rank_published"
+    },
+    {
+     "op": "distinct",
+     "field": "published",
+     "as": "distinct_published"
+    }
+   ],
+   "groupby": [
+    "level"
+   ],
+   "frame": [
+    null,
+    null
+   ],
+   "sort": [
+    {
+     "field": "published",
+     "order": "ascending"
+    }
+   ]
+  },
+  {
+   "window": [
+    {
+     "op": "dense_rank",
+     "as": "rank_level"
+    }
+   ],
+   "frame": [
+    null,
+    null
+   ],
+   "sort": [
+    {
+     "field": "level",
+     "order": "ascending"
+    }
+   ]
+  },
+  {
+   "stack": "count",
+   "groupby": [
+    "level"
+   ],
+   "as": [
+    "y",
+    "y2"
+   ],
+   "offset": "normalize",
+   "sort": [
+    {
+     "field": "published",
+     "order": "ascending"
+    }
+   ]
+  },
+  {
+   "calculate": "datum.y + (datum.rank_published - 1) * datum.distinct_published * 0.01 / 3",
+   "as": "ny"
+  },
+  {
+   "calculate": "datum.y2 + (datum.rank_published - 1) * datum.distinct_published * 0.01 / 3",
+   "as": "ny2"
+  },
+  {
+   "calculate": "datum.x + (datum.rank_level - 1) * 0.01",
+   "as": "nx"
+  },
+  {
+   "calculate": "datum.x2 + (datum.rank_level - 1) * 0.01",
+   "as": "nx2"
+  },
+  {
+   "calculate": "(datum.nx + datum.nx2) / 2",
+   "as": "xc"
+  },
+  {
+   "calculate": "(datum.ny + datum.ny2) / 2",
+   "as": "yc"
+  }
+ ],
+ "vconcat": [
+  {
+   "mark": {
+    "type": "text",
+    "baseline": "middle",
+    "align": "center"
+   },
+   "encoding": {
+    "x": {
+     "aggregate": "min",
+     "field": "xc",
+     "title": "Level",
+     "axis": {
+      "orient": "top"
+     }
+    },
+    "color": {
+     "field": "level",
+     "legend": null
+    },
+    "text": {
+     "field": "level"
+    }
+   }
+  },
+  {
+   "layer": [
+    {
+     "mark": {
+      "type": "rect"
+     },
+     "encoding": {
+      "x": {
+       "field": "nx",
+       "type": "quantitative",
+       "axis": null
+      },
+      "x2": {
+       "field": "nx2"
+      },
+      "y": {
+       "field": "ny",
+       "type": "quantitative"
+      },
+      "y2": {
+       "field": "ny2"
+      },
+      "color": {
+       "field": "level",
+       "type": "nominal",
+       "legend": null
+      },
+      "opacity": {
+       "field": "published",
+       "type": "nominal",
+       "legend": null,
+       "sort": [
+        "published",
+        "unpublished"
+       ]
+      },
+      "tooltip": [
+       {
+        "field": "level",
+        "type": "nominal"
+       },
+       {
+        "field": "published",
+        "type": "nominal"
+       },
+       {
+        "field": "count",
+        "type": "quantitative"
+       }
+      ]
+     }
+    },
+    {
+     "mark": {
+      "type": "text",
+      "baseline": "middle"
+     },
+     "encoding": {
+      "x": {
+       "field": "xc",
+       "type": "quantitative",
+       "axis": null
+      },
+      "y": {
+       "field": "yc",
+       "type": "quantitative",
+       "axis": {
+        "title": "Publish status"
+       }
+      },
+      "text": {
+       "field": "published",
+       "type": "nominal"
+      }
+     }
+    }
+   ],
+   "width": 420,
+   "height": 280
+  }
+ ],
+ "resolve": {
+  "scale": {
+   "x": "shared"
+  }
+ },
+ "config": {
+  "view": {
+   "stroke": ""
+  },
+  "concat": {
+   "spacing": 10
+  },
+  "axis": {
+   "domain": false,
+   "ticks": false,
+   "labels": false,
+   "grid": false
+  }
+ }
+}
+```
+
 ## Important constraints
 
 - All queries are READ-ONLY. Never use CREATE, MERGE, SET, DELETE, or REMOVE.

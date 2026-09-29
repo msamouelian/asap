@@ -5,7 +5,7 @@
 	import { chat } from '$lib/stores/chat.svelte';
 	import { folders } from '$lib/stores/folders.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
-	import MoveConversationModal from './MoveConversationModal.svelte';
+	import MoveConversationModal, { type MoveTarget } from './MoveConversationModal.svelte';
 
 	const { searchQuery }: { searchQuery: string } = $props();
 
@@ -124,38 +124,66 @@
 	}
 
 	// ── Cut & paste (move without dragging across a long list) ───────────────
-	let cutConvId = $state<string | null>(null);
+	// Either a conversation or a folder (with its subtree) can be on the clipboard.
+	type CutItem = { kind: 'conversation' | 'folder'; id: string };
+	let cut = $state<CutItem | null>(null);
+	const cutConvId   = $derived(cut?.kind === 'conversation' ? cut.id : null);
+	const cutFolderId = $derived(cut?.kind === 'folder' ? cut.id : null);
 
 	function cutConversation(id: string) {
 		closeConvMenu();
-		cutConvId = id;
+		cut = { kind: 'conversation', id };
+	}
+	function cutFolder(id: string) {
+		closeFolderMenu();
+		cut = { kind: 'folder', id };
 	}
 
 	async function pasteInto(folderId: string | null) {
 		closeFolderMenu();
-		const id = cutConvId;
-		cutConvId = null;
-		if (!id || !chat.conversations.find(c => c.id === id)) return;
+		const item = cut;
+		cut = null;
+		if (!item) return;
 		try {
-			await chat.moveConversation(id, folderId);
+			if (item.kind === 'conversation') {
+				if (!chat.conversations.find(c => c.id === item.id)) return;
+				await chat.moveConversation(item.id, folderId);
+			} else {
+				await folders.move(item.id, folderId);
+			}
 		} catch (e) {
-			showError(e, 'Failed to move conversation.');
+			showError(e, `Failed to move ${item.kind}.`);
 		}
 	}
 
-	// True when pasting into this folder would actually move the cut conversation.
+	// True when pasting into this folder would actually (and legally) move the cut item.
 	function canPasteInto(folderId: string | null): boolean {
-		if (!cutConvId) return false;
-		const conv = chat.conversations.find(c => c.id === cutConvId);
-		return !!conv && conv.folder_id !== folderId;
+		if (!cut) return false;
+		if (cut.kind === 'conversation') {
+			const conv = chat.conversations.find(c => c.id === cut!.id);
+			return !!conv && conv.folder_id !== folderId;
+		}
+		return folders.canMoveFolderTo(cut.id, folderId ?? 'root');
+	}
+	function pasteBlockedReason(folderId: string | null): string {
+		if (cut?.kind === 'folder' && folderId !== null && folders.isSelfOrDescendant(folderId, cut.id)) {
+			return 'A folder cannot be moved into itself or its own subfolders';
+		}
+		return `The cut ${cut?.kind ?? 'item'} is already in this folder`;
 	}
 
-	// ── "Move to…" modal ──────────────────────────────────────────────────────
-	let moveConv = $state<Conversation | null>(null);
+	// ── "Move to…" modal (conversations and folders) ─────────────────────────
+	let moveTarget = $state<MoveTarget | null>(null);
 
 	function startMove(id: string) {
 		closeConvMenu();
-		moveConv = chat.conversations.find(c => c.id === id) ?? null;
+		const conv = chat.conversations.find(c => c.id === id);
+		moveTarget = conv ? { kind: 'conversation', conv } : null;
+	}
+	function startMoveFolder(id: string) {
+		closeFolderMenu();
+		const folder = folders.folders.find(f => f.id === id);
+		moveTarget = folder ? { kind: 'folder', folder } : null;
 	}
 
 	// ── Folder create / rename (inline inputs) ────────────────────────────────
@@ -219,29 +247,61 @@
 		}
 	}
 
-	// ── Drag & drop: conversations onto folders ───────────────────────────────
-	// dragOverKey: 'root' or a folder id, while a dragged conversation hovers it.
+	// ── Drag & drop: conversations and folders onto folders ──────────────────
+	// dragOverKey: 'root' or a folder id, while a dragged item hovers it.
+	const DT_CONV   = 'application/x-asap-conversation';
+	const DT_FOLDER = 'application/x-asap-folder';
 	let dragOverKey = $state<string | null>(null);
+	// The folder being dragged. Browsers hide dataTransfer payloads during
+	// dragover, so the id is mirrored here to reject self/descendant targets
+	// while hovering rather than only at drop time.
+	let draggingFolderId = $state<string | null>(null);
 
 	function onConvDragStart(e: DragEvent, convId: string) {
-		e.dataTransfer?.setData('application/x-asap-conversation', convId);
+		e.dataTransfer?.setData(DT_CONV, convId);
 		if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
 	}
+	function onFolderDragStart(e: DragEvent, folderId: string) {
+		e.stopPropagation();
+		e.dataTransfer?.setData(DT_FOLDER, folderId);
+		if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+		draggingFolderId = folderId;
+	}
+	function onFolderDragEnd() {
+		draggingFolderId = null;
+		dragOverKey = null;
+	}
 	function onFolderDragOver(e: DragEvent, key: string) {
-		if (!e.dataTransfer?.types.includes('application/x-asap-conversation')) return;
+		const types = e.dataTransfer?.types ?? [];
+		if (types.includes(DT_FOLDER)) {
+			if (!draggingFolderId || !folders.canMoveFolderTo(draggingFolderId, key)) {
+				if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+				return; // not a legal target: let the browser show "no drop"
+			}
+		} else if (!types.includes(DT_CONV)) {
+			return;
+		}
 		e.preventDefault();
-		e.dataTransfer.dropEffect = 'move';
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
 		dragOverKey = key;
 	}
 	async function onFolderDrop(e: DragEvent, folderId: string | null) {
 		e.preventDefault();
+		e.stopPropagation();
 		dragOverKey = null;
-		const convId = e.dataTransfer?.getData('application/x-asap-conversation');
-		if (!convId) return;
+		const folderDragged = e.dataTransfer?.getData(DT_FOLDER);
+		const convId        = e.dataTransfer?.getData(DT_CONV);
+		draggingFolderId = null;
 		try {
-			await chat.moveConversation(convId, folderId);
+			if (folderDragged) {
+				if (!folders.canMoveFolderTo(folderDragged, folderId ?? 'root')) return;
+				await folders.move(folderDragged, folderId);
+				if (folderId !== null) setOpen(folderId, true);
+			} else if (convId) {
+				await chat.moveConversation(convId, folderId);
+			}
 		} catch (err) {
-			showError(err, 'Failed to move conversation.');
+			showError(err, folderDragged ? 'Failed to move folder.' : 'Failed to move conversation.');
 		}
 	}
 
@@ -325,7 +385,7 @@
 	// Escape cancels a pending cut and closes any open menu.
 	function onWindowKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
-			cutConvId = null;
+			cut = null;
 			closeConvMenu();
 			closeFolderMenu();
 		}
@@ -412,12 +472,12 @@
 			</svg>
 			New Folder
 		</button>
-		{#if cutConvId}
+		{#if cut}
 			{@const pasteOk = canPasteInto(folderMenu.folderId)}
 			<button
 				onclick={() => pasteOk && pasteInto(folderMenu!.folderId)}
 				disabled={!pasteOk}
-				title={!pasteOk ? 'The cut conversation is already in this folder' : undefined}
+				title={!pasteOk ? pasteBlockedReason(folderMenu.folderId) : undefined}
 				class={[
 					'w-full flex items-center gap-2 px-3 py-2 text-sm text-left',
 					pasteOk ? 'text-charcoal hover:bg-parchment' : 'text-muted-light cursor-not-allowed',
@@ -430,6 +490,24 @@
 			</button>
 		{/if}
 		{#if !isRoot}
+			<button
+				onclick={() => startMoveFolder(folderMenu!.folderId!)}
+				class="w-full flex items-center gap-2 px-3 py-2 text-sm text-charcoal hover:bg-parchment text-left"
+			>
+				<svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM11 14h6m0 0l-2.5-2.5M17 14l-2.5 2.5" />
+				</svg>
+				Move to…
+			</button>
+			<button
+				onclick={() => cutFolder(folderMenu!.folderId!)}
+				class="w-full flex items-center gap-2 px-3 py-2 text-sm text-charcoal hover:bg-parchment text-left"
+			>
+				<svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M7.85 9.7a3 3 0 1 1 1.84-1.85M7.85 9.7L19 21M7.85 9.7l3.02-3.06M9.69 16.16a3 3 0 1 1-1.84-1.85m1.84 1.85L19 7M9.69 16.16l3.06-3.02" />
+				</svg>
+				Cut
+			</button>
 			<button
 				onclick={() => startRenameFolder(folderMenu!.folderId!)}
 				class="w-full flex items-center gap-2 px-3 py-2 text-sm text-charcoal hover:bg-parchment text-left"
@@ -591,13 +669,17 @@
 	{:else}
 		<button
 			style="margin-left: {indentPx(depth)}"
+			draggable="true"
 			onclick={() => clickFolder(folder.id)}
 			oncontextmenu={(e) => openFolderMenu(e, folder.id)}
+			ondragstart={(e) => onFolderDragStart(e, folder.id)}
+			ondragend={onFolderDragEnd}
 			ondragover={(e) => onFolderDragOver(e, folder.id)}
 			ondragleave={() => { if (dragOverKey === folder.id) dragOverKey = null; }}
 			ondrop={(e) => onFolderDrop(e, folder.id)}
 			class={[
 				'w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm text-left transition-colors',
+				cutFolderId === folder.id ? 'opacity-50' : '',
 				dragOverKey === folder.id
 					? 'bg-navy/10 ring-1 ring-navy/40'
 					: selectedFolderKey === folder.id
@@ -710,6 +792,6 @@
 	{/if}
 </div>
 
-{#if moveConv}
-	<MoveConversationModal conv={moveConv} onclose={() => (moveConv = null)} />
+{#if moveTarget}
+	<MoveConversationModal target={moveTarget} onclose={() => (moveTarget = null)} />
 {/if}

@@ -10,6 +10,8 @@ Invariants enforced here (the schema's FK actions are only backstops):
   - folder names are non-empty, <= 100 chars, unique among siblings
   - a folder can only be deleted when it contains no folders and no
     conversations (409 otherwise)
+  - a folder can be re-parented anywhere in the owner's tree except into
+    itself or one of its own descendants (409 otherwise)
 """
 
 import uuid
@@ -41,6 +43,10 @@ class FolderCreate(BaseModel):
 
 class FolderUpdate(BaseModel):
     name: str
+
+
+class FolderMove(BaseModel):
+    parent_id: uuid.UUID | None   # None = move to the root 'All'
 
 
 class FolderResponse(BaseModel):
@@ -164,6 +170,52 @@ async def rename_folder(folder_id: uuid.UUID, body: FolderUpdate, user: CurrentU
             RETURNING id, parent_id, name, created_ts
             """,
             (name, folder_id, uid),
+        )
+        return _row_to_response(await cur.fetchone())
+
+
+@router.put("/{folder_id}/parent", response_model=FolderResponse)
+async def move_folder(folder_id: uuid.UUID, body: FolderMove, user: CurrentUser, conn: DBConn):
+    """Re-parent a folder (parent_id null = the root 'All'). The whole
+    subtree moves with it. Refused when the destination is the folder
+    itself or lies inside its own subtree, which would orphan the branch."""
+    uid = uuid.UUID(user.id)
+    existing = await _assert_owned(conn, folder_id, uid)
+    if body.parent_id == existing["parent_id"]:
+        return _row_to_response(existing)
+    if body.parent_id is not None:
+        if body.parent_id == folder_id:
+            raise HTTPException(status.HTTP_409_CONFLICT, "A folder cannot be moved into itself.")
+        await _assert_owned(conn, body.parent_id, uid)
+        async with conn.cursor() as cur:
+            # Walk from the destination up to the root; if the folder being
+            # moved appears on that path, the destination is its descendant.
+            await cur.execute(
+                """
+                WITH RECURSIVE up AS (
+                    SELECT id, parent_id FROM conversation_folder WHERE id = %s AND user_id = %s
+                    UNION ALL
+                    SELECT f.id, f.parent_id
+                    FROM conversation_folder f JOIN up ON f.id = up.parent_id
+                )
+                SELECT 1 FROM up WHERE id = %s LIMIT 1
+                """,
+                (body.parent_id, uid, folder_id),
+            )
+            if await cur.fetchone():
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "A folder cannot be moved into one of its own subfolders.",
+                )
+    await _assert_name_free(conn, uid, body.parent_id, existing["name"], exclude_id=folder_id)
+    async with conn.cursor() as cur:
+        await cur.execute(
+            """
+            UPDATE conversation_folder SET parent_id = %s
+            WHERE id = %s AND user_id = %s
+            RETURNING id, parent_id, name, created_ts
+            """,
+            (body.parent_id, folder_id, uid),
         )
         return _row_to_response(await cur.fetchone())
 

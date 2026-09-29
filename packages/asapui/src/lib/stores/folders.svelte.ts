@@ -32,6 +32,34 @@ class FolderStore {
 		await foldersApi.remove(id);
 		this.folders = this.folders.filter(f => f.id !== id);
 	}
+
+	/** Re-parent a folder (parentId null = root). The subtree moves with it. */
+	async move(id: string, parentId: string | null) {
+		const f = this.folders.find(x => x.id === id);
+		if (!f || f.parent_id === parentId) return;
+		const updated = await foldersApi.move(id, parentId);
+		f.parent_id = updated.parent_id;
+	}
+
+	/** True when `candidateId` is `folderId` itself or lies anywhere inside its subtree. */
+	isSelfOrDescendant(candidateId: string | null, folderId: string): boolean {
+		let cur: string | null = candidateId;
+		const seen = new Set<string>();
+		while (cur !== null && !seen.has(cur)) {
+			if (cur === folderId) return true;
+			seen.add(cur);
+			cur = this.folders.find(x => x.id === cur)?.parent_id ?? null;
+		}
+		return false;
+	}
+
+	/** Whether a folder may be moved to destination key ('root' or a folder id). */
+	canMoveFolderTo(folderId: string, destKey: string): boolean {
+		const dest = destKey === 'root' ? null : destKey;
+		const f = this.folders.find(x => x.id === folderId);
+		if (!f || f.parent_id === dest) return false;
+		return dest === null || !this.isSelfOrDescendant(dest, folderId);
+	}
 }
 
 export const folders = new FolderStore();

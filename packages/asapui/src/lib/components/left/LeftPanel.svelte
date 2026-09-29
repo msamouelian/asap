@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { auth } from '$lib/stores/auth.svelte';
 	import { chat } from '$lib/stores/chat.svelte';
-	import { ui } from '$lib/stores/ui.svelte';
+	import { ui, LEFT_TOP_MIN } from '$lib/stores/ui.svelte';
 	import ConversationList from './ConversationList.svelte';
 	import UserPromptList from './UserPromptList.svelte';
 
@@ -15,6 +15,34 @@
 	// host over WebSocket, so no port-forward is needed).
 	const NEO4J_URL: string = import.meta.env.VITE_NEO4J_URL ?? 'https://neo4j.localhost/';
 
+	// ── Horizontal split: Administrator/User pane above, lists below ─────────
+	// The top pane scrolls when its height is less than its content; the
+	// bottom (New Chat, tabs, search, list) takes the rest. Pointer capture
+	// keeps the drag alive when the cursor outruns the handle.
+	const BOTTOM_MIN = 180; // keep New Chat, tabs, search and a few rows visible
+	let asideEl  = $state<HTMLElement | null>(null);
+	let topEl    = $state<HTMLElement | null>(null);
+	let splitting = $state(false);
+
+	function maxTopHeight(): number {
+		return Math.max(LEFT_TOP_MIN, (asideEl?.clientHeight ?? 600) - BOTTOM_MIN);
+	}
+	function startSplit(e: PointerEvent) {
+		e.preventDefault();
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		splitting = true;
+		// Leaving "auto": freeze the current rendered height as the start point.
+		if (ui.leftTopHeight === null && topEl) ui.setLeftTopHeight(topEl.offsetHeight, maxTopHeight());
+	}
+	function moveSplit(e: PointerEvent) {
+		if (!splitting || !topEl) return;
+		ui.setLeftTopHeight(e.clientY - topEl.getBoundingClientRect().top, maxTopHeight());
+	}
+	function endSplit(e: PointerEvent) {
+		splitting = false;
+		(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+	}
+
 	function handleNewAction() {
 		if (ui.leftTab === 'prompts') {
 			ui.openPromptForm({ mode: 'create' });
@@ -26,10 +54,17 @@
 </script>
 
 <aside
-	class="shrink-0 flex flex-col bg-parchment border-r border-sand h-full overflow-hidden"
+	bind:this={asideEl}
+	class={['shrink-0 flex flex-col bg-parchment border-r border-sand h-full overflow-hidden', splitting ? 'select-none' : ''].join(' ')}
 	style="width: {ui.leftPanelWidth}px"
 >
 
+	<!-- ── Top pane: Administrator + User (scrolls when shortened) ─────── -->
+	<div
+		bind:this={topEl}
+		class="shrink-0 overflow-y-auto overflow-x-hidden"
+		style={ui.leftTopHeight === null ? '' : `height: ${ui.leftTopHeight}px`}
+	>
 	<!-- ── Administrator ───────────────────────────────────────────────── -->
 	<div class="px-3 pt-4 pb-3 border-b border-sand shrink-0">
 		<p class="text-[12px] font-semibold uppercase tracking-widest text-muted-light mb-2 px-1">
@@ -92,9 +127,30 @@
 			</svg>
 		</a>
 	</div>
+	</div><!-- /top pane -->
+
+	<!-- ── Split handle: drag to trade space between the panes; double-click
+	     restores the natural height. 8px hit area on a 1px rule. ──────── -->
+	<div
+		role="separator"
+		aria-orientation="horizontal"
+		aria-label="Resize navigation and chat list"
+		class={[
+			'shrink-0 h-2 -my-[3px] z-10 cursor-row-resize flex items-center transition-colors',
+			splitting ? 'bg-navy/20' : 'hover:bg-navy/15',
+		].join(' ')}
+		style="touch-action: none"
+		onpointerdown={startSplit}
+		onpointermove={moveSplit}
+		onpointerup={endSplit}
+		onpointercancel={endSplit}
+		ondblclick={() => ui.resetLeftTopHeight()}
+	>
+		<div class={['w-full h-px', splitting ? 'bg-navy/60' : 'bg-sand'].join(' ')}></div>
+	</div>
 
 	<!-- ── New Chat / New Prompt button ───────────────────────────────── -->
-	<div class="px-3 pt-1 pb-2 shrink-0">
+	<div class="px-3 pt-2 pb-2 shrink-0">
 		<button
 			onclick={handleNewAction}
 			class="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-navy/40 text-navy text-sm font-medium hover:bg-navy hover:text-cream hover:border-navy transition-colors"

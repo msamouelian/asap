@@ -1,34 +1,68 @@
-<script lang="ts">
+<script module lang="ts">
 	import type { Conversation } from '$lib/api/conversations';
 	import type { Folder } from '$lib/api/folders';
+
+	/** What is being moved: a conversation into a folder, or a folder (with
+	 *  its whole subtree) under another folder. */
+	export type MoveTarget =
+		| { kind: 'conversation'; conv: Conversation }
+		| { kind: 'folder'; folder: Folder };
+</script>
+
+<script lang="ts">
 	import { chat } from '$lib/stores/chat.svelte';
 	import { folders } from '$lib/stores/folders.svelte';
 
 	// Destination keys: 'root' = the implicit 'All' folder, otherwise a folder id.
 	type FolderKey = string;
 
-	const { conv, onclose }: { conv: Conversation; onclose: () => void } = $props();
+	const { target, onclose }: { target: MoveTarget; onclose: () => void } = $props();
 
-	const currentKey: FolderKey = conv.folder_id ?? 'root';
+	const currentKey: FolderKey = (target.kind === 'conversation'
+		? target.conv.folder_id
+		: target.folder.parent_id) ?? 'root';
+	const title    = target.kind === 'conversation' ? 'Move conversation' : 'Move folder';
+	const itemName = target.kind === 'conversation'
+		? (target.conv.title ?? 'Untitled chat')
+		: target.folder.name;
+
 	let selectedKey = $state<FolderKey | null>(null);
 	let moving      = $state(false);
 	let errorMsg    = $state('');
 
-	const canMove = $derived(selectedKey !== null && selectedKey !== currentKey && !moving);
+	// A folder may not be moved into itself or any of its own subfolders.
+	function blocked(key: FolderKey): boolean {
+		if (key === currentKey) return true;
+		if (target.kind === 'folder') {
+			return key !== 'root' && folders.isSelfOrDescendant(key, target.folder.id);
+		}
+		return false;
+	}
+	function blockedReason(key: FolderKey): string {
+		if (key === currentKey) return 'current folder';
+		return 'inside the folder being moved';
+	}
+
+	const canMove = $derived(selectedKey !== null && !blocked(selectedKey) && !moving);
 
 	function select(key: FolderKey) {
-		if (key !== currentKey) selectedKey = key;
+		if (!blocked(key)) selectedKey = key;
 	}
 
 	async function confirmMove() {
 		if (!canMove || selectedKey === null) return;
 		moving = true;
 		errorMsg = '';
+		const dest = selectedKey === 'root' ? null : selectedKey;
 		try {
-			await chat.moveConversation(conv.id, selectedKey === 'root' ? null : selectedKey);
+			if (target.kind === 'conversation') {
+				await chat.moveConversation(target.conv.id, dest);
+			} else {
+				await folders.move(target.folder.id, dest);
+			}
 			onclose();
 		} catch (e) {
-			errorMsg = e instanceof Error ? e.message : 'Failed to move conversation.';
+			errorMsg = e instanceof Error ? e.message : `Failed to move ${target.kind}.`;
 			moving = false;
 		}
 	}
@@ -42,25 +76,25 @@
 {/snippet}
 
 {#snippet optionRow(key: string, name: string, depth: number)}
-	{@const isCurrent  = key === currentKey}
+	{@const isBlocked  = blocked(key)}
 	{@const isSelected = key === selectedKey}
 	<button
 		onclick={() => select(key)}
-		disabled={isCurrent}
+		disabled={isBlocked}
 		style="padding-left: {12 + depth * 18}px"
 		class={[
 			'w-full flex items-center gap-2 pr-3 py-2 rounded-lg text-sm text-left transition-colors',
 			isSelected
 				? 'bg-navy text-cream'
-				: isCurrent
+				: isBlocked
 					? 'text-muted-light cursor-not-allowed'
 					: 'text-charcoal hover:bg-parchment',
 		].join(' ')}
 	>
 		<span class="text-base leading-none">📁</span>
 		<span class="truncate">{name}</span>
-		{#if isCurrent}
-			<span class="ml-auto text-xs italic shrink-0">current folder</span>
+		{#if isBlocked}
+			<span class="ml-auto text-xs italic shrink-0">{blockedReason(key)}</span>
 		{/if}
 	</button>
 {/snippet}
@@ -69,13 +103,13 @@
 	<button type="button" class="absolute inset-0 w-full h-full cursor-default"
 		aria-label="Close modal" onclick={onclose}></button>
 
-	<div role="dialog" aria-modal="true" aria-labelledby="move-conv-title" tabindex="-1"
+	<div role="dialog" aria-modal="true" aria-labelledby="move-item-title" tabindex="-1"
 		class="relative z-10 w-full mx-4 bg-cream rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] max-w-md"
 	>
 		<div class="px-5 pt-4 pb-3 border-b border-sand">
-			<h2 id="move-conv-title" class="text-base font-semibold text-charcoal">Move conversation</h2>
+			<h2 id="move-item-title" class="text-base font-semibold text-charcoal">{title}</h2>
 			<p class="text-xs text-muted mt-0.5 truncate">
-				{conv.title ?? 'Untitled chat'} — choose a destination folder
+				{itemName} — choose a destination folder
 			</p>
 		</div>
 

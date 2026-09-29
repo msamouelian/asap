@@ -12,4 +12,5 @@ export const foldersApi = {
 	create: (name: string, parentId: string | null) => apiPost<Folder>('/folders', { name, parent_id: parentId }),
 	rename: (id: string, name: string)              => apiPut<Folder>(`/folders/${id}`, { name }),
 	remove: (id: string)                            => apiDelete(`/folders/${id}`),
+	move:   (id: string, parentId: string | null)   => apiPut<Folder>(`/folders/${id}/parent`, { parent_id: parentId }),
 };

@@ -1,37 +1,16 @@
 <script lang="ts">
-	import { marked, Renderer } from 'marked';
+	import { renderMarkdown } from '$lib/markdown';
 	import { ui } from '$lib/stores/ui.svelte';
 	import type { DisplayMessage, RagMsg, ThinkingMsg } from '$lib/stores/chat.svelte';
 	import ToolCallBlock from './ToolCallBlock.svelte';
 	import type { Result as VegaResult } from 'vega-embed';
 	import {
-		parseVegaSpec, vegaBlockHtml, embedChart, chartRows, rowsToCsv,
+		parseVegaSpec, embedChart, chartRows, rowsToCsv,
 		downloadBlob, downloadImage, chartFileStem, escapeHtml,
 	} from '$lib/vega';
 
 	const { msg }: { msg: DisplayMessage } = $props();
 
-	// ── Custom renderer: adds copy button to every fenced code block ─────────
-	const renderer = new Renderer();
-	renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
-		const langClass = lang ? ` class="language-${lang}"` : '';
-		const escaped   = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		const codeHtml = `<div class="code-block-wrapper"><button class="copy-code-btn" title="Copy code" aria-label="Copy code"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><pre><code${langClass}>${escaped}</code></pre></div>`;
-		// A fenced Vega-Lite spec becomes a chart container; the code block is
-		// kept inside it (collapsed) as the chart's viewable/copyable source.
-		// While the fence is still streaming the JSON is incomplete, parses as
-		// null, and renders as a plain code block until it completes.
-		return parseVegaSpec(text, lang) ? vegaBlockHtml(codeHtml) : codeHtml;
-	};
-
-	// ── Custom renderer: wrap tables with a CSV export button ────────────────
-	const baseTable = Renderer.prototype.table;
-	renderer.table = function (token: Parameters<Renderer['table']>[0]) {
-		const tableHtml = baseTable.call(this, token);
-		return `<div class="table-export-wrapper"><span class="table-export-btns"><button class="copy-table-btn" title="Copy for spreadsheet" aria-label="Copy table for spreadsheet"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="export-csv-btn" title="Export table as CSV" aria-label="Export table as CSV"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></span>${tableHtml}</div>`;
-	};
-
-	marked.setOptions({ gfm: true, breaks: true });
 
 	// ── CSV export ────────────────────────────────────────────────────────────
 
@@ -78,16 +57,9 @@
 		URL.revokeObjectURL(url);
 	}
 
-	const html = $derived(() => {
-		if (msg.kind !== 'assistant') return '';
-		const raw = marked.parse(msg.content, { renderer }) as string;
-		// Style [Passage N] citations as chips so they read as references,
-		// not stray brackets.
-		return raw.replace(
-			/\[Passage (\d+)\]/g,
-			'<span class="passage-cite">Passage $1</span>',
-		);
-	});
+	// Sanitized in $lib/markdown — model output is untrusted and must never
+	// reach {@html} unsanitized.
+	const html = $derived(() => (msg.kind === 'assistant' ? renderMarkdown(msg.content) : ''));
 
 	function legacyCopy(text: string, onSuccess: () => void) {
 		const ta = document.createElement('textarea');
@@ -111,13 +83,6 @@
 		// would be wasteful. Reading msg.streaming here re-runs this effect
 		// when the turn completes.
 		const streaming = msg.kind === 'assistant' && !!msg.streaming;
-
-		// Open all links (e.g. ArchivesSpace record links) in a new tab rather
-		// than navigating away from the chat.
-		proseEl.querySelectorAll<HTMLAnchorElement>('a[href]').forEach(a => {
-			a.target = '_blank';
-			a.rel = 'noopener noreferrer';
-		});
 
 		const buttons = proseEl.querySelectorAll<HTMLButtonElement>('.copy-code-btn');
 		const cleanups: (() => void)[] = [];

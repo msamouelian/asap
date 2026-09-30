@@ -7,7 +7,9 @@
     "dev": "vite dev --port 5173",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.8",
@@ -15,16 +17,20 @@
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/vite": "^4.1.8",
     "@types/node": "^25.9.1",
+    "jsdom": "^26.1.0",
     "svelte": "^5.30.0",
     "svelte-check": "^4.2.1",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^3.2.7"
   },
   "dependencies": {
+    "dompurify": "^3.4.16",
     "marked": "^15.0.12",
     "vega": "^6.4.0",
     "vega-embed": "^7.2.0",
-    "vega-lite": "^6.4.3"
+    "vega-lite": "^6.4.3",
+    "vega-tooltip": "^1.1.0"
   }
 }

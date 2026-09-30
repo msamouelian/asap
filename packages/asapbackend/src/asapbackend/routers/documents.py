@@ -32,6 +32,7 @@ from kubernetes.client.exceptions import ApiException
 from pydantic import BaseModel
 
 from asapbackend.auth.dependencies import CurrentUser
+from asapbackend.services import conversation as conv_svc
 from asapbackend.config import settings
 from asapbackend.database import get_db
 from asapbackend.routers.extractor import _get_batch_v1
@@ -385,11 +386,7 @@ async def _validate_enableable(user, collection_id: str) -> dict:
 
 
 async def _assert_own_conversation(conn, user, conversation_id: str) -> None:
-    cur = await conn.execute(
-        "SELECT EXISTS (SELECT 1 FROM conversation WHERE id = %s AND user_id = %s) AS found",
-        (conversation_id, user.id),
-    )
-    if not (await cur.fetchone())["found"]:
+    if not await conv_svc.owns_conversation(conn, conversation_id, user.id):
         raise HTTPException(status_code=404, detail="Conversation not found.")
 
 

@@ -22,7 +22,7 @@
   "ssoSessionMaxLifespan": 36000,
   "offlineSessionIdleTimeout": 2592000,
   "refreshTokenMaxReuse": 0,
-  "revokeRefreshToken": false,
+  "revokeRefreshToken": true,
   "roles": {
     "realm": [
       {

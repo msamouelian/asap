@@ -20,6 +20,24 @@ async def get_user_id(conn: psycopg.AsyncConnection, keycloak_id: str) -> str | 
     return str(row["id"]) if row else None
 
 
+async def owns_conversation(
+    conn: psycopg.AsyncConnection, conversation_id: str, user_id: str
+) -> bool:
+    """True when `conversation_id` exists AND belongs to `user_id`.
+
+    Every route that takes a conversation id from the client must call this
+    (or scope its own SQL by user_id) before reading or writing the
+    conversation. Callers answer a failed check with 404, not 403, so a
+    caller cannot tell a foreign conversation from a nonexistent one.
+    """
+    async with conn.cursor() as cur:
+        await cur.execute(
+            "SELECT 1 FROM conversation WHERE id = %s AND user_id = %s",
+            (uuid.UUID(conversation_id), uuid.UUID(user_id)),
+        )
+        return await cur.fetchone() is not None
+
+
 async def create_conversation(
     conn: psycopg.AsyncConnection, user_id: str, title: str
 ) -> str:

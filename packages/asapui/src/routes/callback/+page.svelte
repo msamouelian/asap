@@ -1,26 +1,26 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { exchangeCode, fetchOidcConfig } from '$lib/api/auth';
+	import { exchangeCode, fetchOidcConfig, readCallbackParams } from '$lib/api/auth';
 	import { auth } from '$lib/stores/auth.svelte';
 
 	let error = $state('');
 
 	onMount(async () => {
-		const params = new URLSearchParams(window.location.search);
-		const code  = params.get('code');
-		const state = params.get('state');
-
-		if (!code) {
-			error = 'No authorization code received from Keycloak.';
-			return;
-		}
+		const search = window.location.search;
+		// Scrub the one-time code and state out of the address bar and history
+		// before doing anything else, so neither survives in browser history,
+		// a screenshot, or the Referer of a later request.
+		history.replaceState(null, '', '/callback');
 
 		const savedState = sessionStorage.getItem('pkce_state');
-		if (savedState && state !== savedState) {
-			error = 'State mismatch — possible CSRF attack. Please try again.';
+		let code: string;
+		try {
+			({ code } = readCallbackParams(search, savedState));
+		} catch (err) {
 			sessionStorage.removeItem('pkce_state');
 			sessionStorage.removeItem('pkce_verifier');
+			error = err instanceof Error ? err.message : 'Authentication failed. Please try again.';
 			return;
 		}
 

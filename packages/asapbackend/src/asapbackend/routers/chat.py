@@ -13,7 +13,7 @@ import json
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -148,6 +148,18 @@ async def chat(
     user: CurrentUser,
     conn: DBConn,
 ):
+    # Ownership check for an existing conversation. This must happen here,
+    # before the StreamingResponse is returned: once streaming starts the
+    # status is already 200 and nothing can be refused. Without this, any
+    # authenticated user who learned another user's conversation id could
+    # read its history (and the private document chunks attached to it)
+    # through the model and write turns into it. 404 rather than 403 so a
+    # foreign id is indistinguishable from a nonexistent one.
+    if request.conversation_id is not None and not await conv_svc.owns_conversation(
+        conn, str(request.conversation_id), user.id
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Conversation not found.")
+
     return StreamingResponse(
         _stream(user, request, conn),
         media_type="text/event-stream",

@@ -1,3 +1,21 @@
+/**
+ * Auth store — OIDC tokens held in memory only.
+ *
+ * Tokens are never written to localStorage/sessionStorage/IndexedDB. Any
+ * script running on this origin (an XSS, a rogue extension) could read
+ * on-disk tokens long after the tab closed and keep the session alive with
+ * the refresh token; in-memory tokens die with the tab. On reload the app has
+ * no token and redirects to Keycloak, whose own HttpOnly session cookie
+ * completes the round trip without a password prompt.
+ *
+ * One tab at a time: tokens are not shared between tabs (see tabLock.ts).
+ * Keycloak rotates refresh tokens (revokeRefreshToken), so two tabs with
+ * independent token chains would invalidate each other on every refresh.
+ *
+ * A failed refresh re-authenticates via Keycloak (silent while the Keycloak
+ * session lives) rather than ending the Keycloak session outright.
+ */
+
 import type { User } from '$lib/api/users';
 import type { OidcConfig, TokenSet } from '$lib/api/auth';
 import {
@@ -8,12 +26,27 @@ import {
 	refreshAccessToken,
 } from '$lib/api/auth';
 
-const K_ACCESS  = 'asap_access_token';
-const K_REFRESH = 'asap_refresh_token';
-const K_ID      = 'asap_id_token';
-const K_EXPIRY  = 'asap_token_expiry'; // epoch ms
+/** Keys an earlier version wrote to localStorage. Purged on every startup. */
+export const LEGACY_STORAGE_KEYS = [
+	'asap_access_token',
+	'asap_refresh_token',
+	'asap_id_token',
+	'asap_token_expiry',
+] as const;
 
-class AuthStore {
+/** Refresh when the access token has less than this long to live. */
+const REFRESH_SKEW_MS = 30_000;
+
+/** Remove tokens an older build stored on disk. Safe to call repeatedly. */
+export function purgeLegacyStorage(): void {
+	try {
+		for (const k of LEGACY_STORAGE_KEYS) localStorage.removeItem(k);
+	} catch {
+		/* storage unavailable — nothing to purge */
+	}
+}
+
+export class AuthStore {
 	accessToken  = $state<string | null>(null);
 	refreshToken = $state<string | null>(null);
 	idToken      = $state<string | null>(null);
@@ -41,22 +74,26 @@ class AuthStore {
 		return this.oidcConfig;
 	}
 
+	/**
+	 * Startup. Purges any tokens an older build left on disk. Tokens
+	 * themselves are never read from storage, so a fresh tab starts signed out.
+	 */
 	hydrate(): void {
-		this.accessToken  = localStorage.getItem(K_ACCESS);
-		this.refreshToken = localStorage.getItem(K_REFRESH);
-		this.idToken      = localStorage.getItem(K_ID);
-		this.tokenExpiry  = parseInt(localStorage.getItem(K_EXPIRY) ?? '0', 10);
+		purgeLegacyStorage();
 	}
 
+	/** Store a token set from login or refresh (memory only). */
 	setTokens(tokens: TokenSet): void {
 		this.accessToken  = tokens.access_token;
 		this.refreshToken = tokens.refresh_token;
 		this.idToken      = tokens.id_token;
 		this.tokenExpiry  = Date.now() + tokens.expires_in * 1000;
-		localStorage.setItem(K_ACCESS,  tokens.access_token);
-		localStorage.setItem(K_REFRESH, tokens.refresh_token);
-		localStorage.setItem(K_ID,      tokens.id_token);
-		localStorage.setItem(K_EXPIRY,  String(this.tokenExpiry));
+	}
+
+	private clear(): void {
+		this.accessToken = this.refreshToken = this.idToken = null;
+		this.tokenExpiry = 0;
+		this.user = null;
 	}
 
 	setUser(u: User): void { this.user = u; }
@@ -71,18 +108,18 @@ class AuthStore {
 		}
 	}
 
-	// In-flight refresh shared by concurrent callers. Keycloak refresh tokens
-	// may be single-use (revokeRefreshToken); parallel refreshes would race
-	// and the loser's failure would log the whole session out.
+	// In-flight refresh shared by concurrent callers. Refresh tokens are
+	// single-use (Keycloak revokeRefreshToken); parallel refreshes would race
+	// and the loser's failure would bounce the tab through Keycloak.
 	private refreshInFlight: Promise<boolean> | null = null;
 
 	/**
-	 * Refresh the access token if it expires within 30 seconds.
-	 * Returns false if refresh fails — caller should redirect to login.
+	 * Refresh the access token if it expires within REFRESH_SKEW_MS.
+	 * Returns false (after starting re-authentication) if refresh fails.
 	 */
 	async ensureFreshToken(): Promise<boolean> {
 		if (!this.accessToken) return false;
-		if (this.tokenExpiry - Date.now() > 30_000) return true;
+		if (this.tokenExpiry - Date.now() > REFRESH_SKEW_MS) return true;
 		if (!this.refreshToken) return false;
 		this.refreshInFlight ??= (async () => {
 			try {
@@ -90,7 +127,7 @@ class AuthStore {
 				this.setTokens(await refreshAccessToken(this.refreshToken!, config));
 				return true;
 			} catch {
-				this.logout();
+				await this.reauthenticate();
 				return false;
 			} finally {
 				this.refreshInFlight = null;
@@ -101,29 +138,37 @@ class AuthStore {
 
 	async login(): Promise<void> {
 		const config = await this.loadConfig();
+		this.leaving = true;
 		await initiateLogin(config);
 	}
 
-	// True once a deliberate logout navigation has started. The chat panel's
-	// beforeunload guard checks this so signing out doesn't ALSO trigger the
-	// browser's "leave site?" prompt (which, if cancelled, would strand the
-	// app with cleared tokens and no way to make API calls).
+	/**
+	 * Drop the tokens and go back through Keycloak. While the Keycloak session
+	 * is alive this completes without a password prompt.
+	 */
+	private async reauthenticate(): Promise<void> {
+		this.clear();
+		try {
+			await this.login();
+		} catch {
+			window.location.href = '/';
+		}
+	}
+
+	// True once a deliberate logout/re-auth navigation has started. The chat
+	// panel's beforeunload guard checks this so signing out doesn't ALSO
+	// trigger the browser's "leave site?" prompt.
 	leaving = $state(false);
 
+	/** Explicit sign-out: ends the Keycloak session. */
 	logout(): void {
 		this.leaving = true;
 		const logoutUrl = this.oidcConfig && this.idToken
 			? buildLogoutUrl(this.oidcConfig, this.idToken)
 			: null;
 
-		this.accessToken = this.refreshToken = this.idToken = null;
-		this.tokenExpiry = 0;
-		this.user = null;
-
-		localStorage.removeItem(K_ACCESS);
-		localStorage.removeItem(K_REFRESH);
-		localStorage.removeItem(K_ID);
-		localStorage.removeItem(K_EXPIRY);
+		this.clear();
+		purgeLegacyStorage();
 
 		window.location.href = logoutUrl ?? '/';
 	}

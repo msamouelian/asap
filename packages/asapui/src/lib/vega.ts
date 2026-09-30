@@ -9,6 +9,7 @@
  */
 
 import type { Result, EmbedOptions } from 'vega-embed';
+import type { Loader } from 'vega';
 
 export type VegaSpec = Record<string, unknown>;
 
@@ -92,23 +93,128 @@ export function specTitle(spec: VegaSpec): string | undefined {
 	return undefined;
 }
 
+// ── Spec hardening ──────────────────────────────────────────────────────────
+//
+// Chart specs come from the model, so they are untrusted. Three things in a
+// spec can reach outside the chart and are removed or refused here:
+//
+//  * `usermeta.embedOptions` — vega-embed merges it OVER the options we pass,
+//    so a spec could re-enable the actions menu (whose "View Source" window
+//    writes unescaped `sourceHeader` HTML on our origin), point `editorUrl`
+//    at an attacker, or swap in its own loader. Deleted.
+//  * Remote loads — `data.url`, lookup transforms from a URL, image marks and
+//    the `url` channel all make the browser fetch an attacker-chosen URL with
+//    zero clicks, carrying whatever the model puts in the query string.
+//    Refused with a readable error (the code block stays visible).
+//  * `href` — a clickable link inside a trusted chart. Deleted.
+//
+// Belt and braces: even if a path is missed, the loader passed to vega-embed
+// refuses every fetch, and the tooltip formatter drops `image` values (which
+// vega-tooltip would otherwise render as <img>).
+
+export class UnsafeSpecError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'UnsafeSpecError';
+	}
+}
+
+const SCHEMA_HOST = /^https:\/\/vega\.github\.io\/schema\//;
+
+function isImageMark(v: unknown): boolean {
+	if (v === 'image') return true;
+	return !!v && typeof v === 'object' && (v as { type?: unknown }).type === 'image';
+}
+
+function walk(node: unknown, path: string): unknown {
+	if (Array.isArray(node)) return node.map((v, i) => walk(v, `${path}[${i}]`));
+	if (!node || typeof node !== 'object') return node;
+	const out: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+		switch (key) {
+			case 'values':
+			case 'datasets':
+				// Inline data rows. Column names are arbitrary (a row may well have
+				// a "url" field) and rows are inert, so copy without inspecting.
+				out[key] = value;
+				continue;
+			case 'url':
+				throw new UnsafeSpecError(
+					`Charts may only use inline data (data.values); remote loading via "${path}.url" is not allowed.`,
+				);
+			case 'href':
+				// Links inside a chart are dropped silently.
+				continue;
+			case 'mark':
+			case 'marks': {
+				const items = Array.isArray(value) ? value : [value];
+				if (items.some(isImageMark)) {
+					throw new UnsafeSpecError(`Image marks are not allowed ("${path}.${key}").`);
+				}
+				break;
+			}
+		}
+		out[key] = walk(value, `${path}.${key}`);
+	}
+	return out;
+}
+
+/**
+ * Return a copy of `spec` with everything that could reach outside the chart
+ * removed. Throws UnsafeSpecError for constructs that cannot be removed
+ * without changing what the chart shows (remote data, image marks).
+ */
+export function sanitizeVegaSpec(spec: VegaSpec): VegaSpec {
+	const { usermeta: _usermeta, ...rest } = spec;
+	void _usermeta;
+	const clean = walk(rest, 'spec') as VegaSpec;
+	if (typeof clean.$schema === 'string' && !SCHEMA_HOST.test(clean.$schema)) {
+		// Not fetched by vega-embed, but no reason to keep a foreign URL around.
+		delete clean.$schema;
+	}
+	return clean;
+}
+
+/** A vega Loader that refuses every request. */
+export const blockedLoader: Loader = {
+	load:     async uri => { throw new UnsafeSpecError(`Blocked chart request to ${String(uri)}`); },
+	sanitize: async uri => { throw new UnsafeSpecError(`Blocked chart URL ${String(uri)}`); },
+	http:     async uri => { throw new UnsafeSpecError(`Blocked chart request to ${String(uri)}`); },
+	file:     async name => { throw new UnsafeSpecError(`Blocked chart file read ${String(name)}`); },
+};
+
+/** Tooltip value with any `image` entry removed (vega-tooltip renders it as <img>). */
+export function stripTooltipImage(value: unknown): unknown {
+	if (value && typeof value === 'object' && !Array.isArray(value) && 'image' in value) {
+		const { image: _image, ...rest } = value as Record<string, unknown>;
+		void _image;
+		return rest;
+	}
+	return value;
+}
+
 // ── Embedding ───────────────────────────────────────────────────────────────
 
 /**
- * Draw `spec` into `el`. Single-view and layered specs without an explicit
- * width are stretched to the container so charts fill the message bubble;
- * concat/facet specs keep Vega-Lite's own sizing ("container" is unsupported
- * there). Returns the vega-embed result; call `result.finalize()` on cleanup.
+ * Draw `spec` into `el`. The spec is hardened first (see above). Single-view
+ * and layered specs without an explicit width are stretched to the container
+ * so charts fill the message bubble; concat/facet specs keep Vega-Lite's own
+ * sizing ("container" is unsupported there). Returns the vega-embed result;
+ * call `result.finalize()` on cleanup.
  */
 export async function embedChart(el: HTMLElement, spec: VegaSpec): Promise<Result> {
-	const { default: vegaEmbed } = await import('vega-embed');
-	const mode = isVegaMode(spec);
-	const prepared: VegaSpec = { ...spec };
+	const prepared = sanitizeVegaSpec(spec);
+	const [{ default: vegaEmbed }, { formatValue }] = await Promise.all([
+		import('vega-embed'),
+		import('vega-tooltip'),
+	]);
+	const mode = isVegaMode(prepared);
 	if (mode === 'vega-lite') {
-		const single = 'mark' in spec || 'layer' in spec;
-		const isArc = spec.mark === 'arc' || (typeof spec.mark === 'object' && spec.mark !== null && (spec.mark as { type?: string }).type === 'arc');
-		if (single && !isArc && !('width' in spec)) prepared.width = 'container';
-		if (single && !('height' in spec)) prepared.height = 280;
+		const single = 'mark' in prepared || 'layer' in prepared;
+		const mark = prepared.mark;
+		const isArc = mark === 'arc' || (typeof mark === 'object' && mark !== null && (mark as { type?: string }).type === 'arc');
+		if (single && !isArc && !('width' in prepared)) prepared.width = 'container';
+		if (single && !('height' in prepared)) prepared.height = 280;
 		// Text-heavy archival labels: let long axis labels breathe.
 		prepared.autosize = prepared.autosize ?? { type: 'fit-x', contains: 'padding' };
 	}
@@ -116,6 +222,15 @@ export async function embedChart(el: HTMLElement, spec: VegaSpec): Promise<Resul
 		mode,
 		renderer: 'svg',
 		actions: false, // our own toolbar provides export; no external "open in editor" link
+		forceActionsMenu: false,
+		// Interpret expressions instead of compiling them with Function(): no
+		// eval needed, so a Content-Security-Policy without 'unsafe-eval' works.
+		ast: true,
+		loader: blockedLoader,
+		tooltip: {
+			formatTooltip: (value, valueToHtml, maxDepth, baseURL) =>
+				formatValue(stripTooltipImage(value), valueToHtml, maxDepth, baseURL),
+		},
 		config: {
 			font: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
 			background: 'transparent',

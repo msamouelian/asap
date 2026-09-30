@@ -74,6 +74,28 @@ export async function initiateLogin(config: OidcConfig): Promise<void> {
 		`${config.keycloak_url}/realms/${config.realm}/protocol/openid-connect/auth?${params}`;
 }
 
+/**
+ * Validate the parameters Keycloak redirected back with. Pure so it can be
+ * unit-tested; the callback page calls it before exchanging the code.
+ *
+ * The state check is strict: a missing saved state is a failure, not a pass.
+ * Without the state we started with, a code in the URL could have been
+ * planted by someone else (login CSRF).
+ */
+export function readCallbackParams(search: string, savedState: string | null): { code: string } {
+	const params = new URLSearchParams(search);
+	const code  = params.get('code');
+	const state = params.get('state');
+	if (params.get('error')) {
+		throw new Error(params.get('error_description') || `Keycloak returned error "${params.get('error')}".`);
+	}
+	if (!code) throw new Error('No authorization code received from Keycloak.');
+	if (!savedState || !state || state !== savedState) {
+		throw new Error('State mismatch — possible CSRF attack. Please try again.');
+	}
+	return { code };
+}
+
 /** Exchange the authorization code for tokens. Called from /callback. */
 export async function exchangeCode(code: string, config: OidcConfig): Promise<TokenSet> {
 	const verifier = sessionStorage.getItem('pkce_verifier');

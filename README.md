@@ -137,6 +137,7 @@ defaults for the two LLMs — by design, a missing coordinate fails loudly
 rather than pointing at a phantom server. Changing the embedding model or its
 dimensions requires re-running extraction, which rebuilds every vector index.
 
+
 ```bash
 # 1. Create the cluster (persistent volumes live on the host filesystem)
 ./scripts/recreate-cluster.sh

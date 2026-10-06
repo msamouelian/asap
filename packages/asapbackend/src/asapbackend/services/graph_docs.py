@@ -133,6 +133,36 @@ def set_archived(collection_id: str, archived: bool) -> None:
         )
 
 
+def mark_collection_failed(job: dict[str, Any]) -> None:
+    """Replace whatever a dead worker left behind with the same failed
+    tombstone the worker itself writes on a handled failure: the collection
+    node with status='failed' and no document content, so the failure is
+    visible in listings and the partial upload is never searchable."""
+    with _get_driver().session() as s:
+        s.run(
+            """
+            MATCH (dc:DocumentCollection {id: $id})
+            OPTIONAL MATCH (dc)-[:CONTAINS]->(d:Document)
+            OPTIONAL MATCH (d)-[:HAS_CHUNK]->(ch:DocumentChunk)
+            DETACH DELETE d, ch
+            """,
+            id=job["document_collection_id"],
+        )
+        s.run(
+            """
+            MERGE (dc:DocumentCollection {id: $id})
+            SET dc.title = $title, dc.description = $description,
+                dc.source_location = $source_location, dc.uploaded_by = $uploaded_by,
+                dc.visibility = $visibility, dc.archived = false, dc.status = 'failed'
+            """,
+            id=job["document_collection_id"], title=job["collection_title"],
+            description=job.get("collection_description"),
+            source_location=job.get("source_location"),
+            uploaded_by=str(job["user_id"]), visibility=job["visibility"],
+        )
+    log.info("Marked document collection %s failed (worker died)", job["document_collection_id"])
+
+
 def delete_collection_tree(collection_id: str) -> None:
     """Hard delete a collection with its documents and chunks. Guards
     (ownership, used-in-conversation) are enforced by the router BEFORE this

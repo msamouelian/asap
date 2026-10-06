@@ -44,7 +44,7 @@ resources:
     memory: "2Gi"
     cpu: "1"
   limits:
-    memory: "4Gi"
+    memory: "8Gi"
     cpu: "3"
 
 # Keep finished job objects around briefly for debugging, then reap.

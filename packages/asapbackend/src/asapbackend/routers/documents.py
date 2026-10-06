@@ -22,7 +22,7 @@ import copy
 import logging
 import shutil
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 import psycopg
@@ -36,6 +36,7 @@ from asapbackend.services import conversation as conv_svc
 from asapbackend.config import settings
 from asapbackend.database import get_db
 from asapbackend.routers.extractor import _get_batch_v1
+from asapbackend.services import graph_docs
 
 from typing import Annotated
 from fastapi import Depends
@@ -227,17 +228,124 @@ async def upload_collection(
     )
 
 
+# ── Dead-worker reconciliation ────────────────────────────────────────────────
+# The worker writes its own 'failed' status on any exception it can catch, but
+# a container the kernel kills (OOMKilled, eviction, node restart) never gets
+# the chance, leaving the job row 'running' forever and the collection stuck
+# at 'processing'. The Kubernetes Job object is the source of truth for
+# whether the worker is still alive, so every progress poll checks it.
+
+_NOT_FOUND_GRACE_S = 60  # job creation / listing lag before "missing" means dead
+
+
+def _worker_job_verdict(job_id: str, created_ts: datetime) -> str | None:
+    """Return an error message if the worker for `job_id` is dead without
+    having reported, else None (still running, or too early to tell)."""
+    namespace = settings.k8s_namespace
+    batch = _get_batch_v1()
+    selector = ",".join(f"{k}={v}" for k, v in _WORKER_LABELS.items())
+    jobs = batch.list_namespaced_job(namespace=namespace, label_selector=selector).items
+
+    def _job_id_of(job) -> str | None:
+        for c in job.spec.template.spec.containers:
+            for env in c.env or []:
+                if env.name == "JOB_ID":
+                    return env.value
+        return None
+
+    job = next((j for j in jobs if _job_id_of(j) == job_id), None)
+    if job is None:
+        age = (datetime.now(timezone.utc) - created_ts).total_seconds()
+        if age < _NOT_FOUND_GRACE_S:
+            return None
+        return ("The worker job no longer exists in the cluster; it was removed "
+                "before reporting a result.")
+
+    st = job.status
+    if (st.active or 0) > 0:
+        return None
+    if not ((st.failed or 0) > 0 or (st.succeeded or 0) > 0):
+        return None  # created but not yet scheduled
+
+    # Pull the container's termination reason for a useful message.
+    reason, code, mem_limit = None, None, None
+    try:
+        core = k8s.CoreV1Api(api_client=batch.api_client)
+        pods = core.list_namespaced_pod(
+            namespace=namespace, label_selector=f"job-name={job.metadata.name}",
+        ).items
+        if pods:
+            pod = max(pods, key=lambda p: p.metadata.creation_timestamp)
+            cs = (pod.status.container_statuses or [None])[0]
+            term = cs.state.terminated if cs and cs.state else None
+            if term:
+                reason, code = term.reason, term.exit_code
+            res = pod.spec.containers[0].resources
+            mem_limit = (res.limits or {}).get("memory") if res else None
+    except Exception:  # noqa: BLE001 — diagnostics only
+        log.exception("Could not read worker pod status for job %s", job_id)
+
+    if (st.succeeded or 0) > 0:
+        return "The worker exited without reporting completion."
+    msg = f"The worker was terminated ({reason or 'unknown reason'}"
+    if code is not None:
+        msg += f", exit code {code}"
+    msg += ")."
+    if reason == "OOMKilled":
+        msg += (f" It ran out of memory (limit {mem_limit or 'unknown'}); the upload "
+                "is too large to process in one pass. Try splitting large "
+                "documents or spreadsheets into smaller files.")
+    return msg
+
+
+async def _mark_job_failed(conn, job_id: str, error: str) -> None:
+    """Apply the worker's own failure protocol on its behalf: fail the job
+    row, tombstone the collection in Neo4j, and discard the staged upload."""
+    cur = await conn.execute(
+        """
+        UPDATE document_processing_job
+        SET status = 'failed', error = %s, current_document = NULL, completed_ts = now()
+        WHERE id = %s AND status IN ('pending', 'running')
+        RETURNING document_collection_id, collection_title, collection_description,
+                  source_location, visibility, user_id
+        """,
+        (error, job_id),
+    )
+    job = await cur.fetchone()
+    if not job:
+        return  # someone else (the worker, a concurrent poll) got there first
+    log.warning("Document job %s marked failed by reconciliation: %s", job_id, error)
+    job = dict(job)
+    job["document_collection_id"] = str(job["document_collection_id"])
+    try:
+        await asyncio.to_thread(graph_docs.mark_collection_failed, job)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not tombstone collection for dead job %s", job_id)
+    shutil.rmtree(Path(settings.upload_root) / job_id, ignore_errors=True)
+
+
 @router.get("/jobs/current", response_model=JobProgress | None)
 async def current_job(user: CurrentUser, conn: DBConn):
-    """The calling user's most recent ingestion job (any status), or null."""
-    cur = await conn.execute(
-        f"""
+    """The calling user's most recent ingestion job (any status), or null.
+    A job still marked running whose worker has died is failed here."""
+    query = f"""
         SELECT {_JOB_COLS} FROM document_processing_job
         WHERE user_id = %s ORDER BY created_ts DESC LIMIT 1
-        """,
-        (user.id,),
-    )
+    """
+    cur = await conn.execute(query, (user.id,))
     row = await cur.fetchone()
+    if row and row["status"] in ("pending", "running"):
+        try:
+            verdict = await asyncio.to_thread(
+                _worker_job_verdict, str(row["id"]), row["created_ts"],
+            )
+        except Exception:  # noqa: BLE001 — never let a K8s hiccup break polling
+            log.exception("Worker job reconciliation failed")
+            verdict = None
+        if verdict:
+            await _mark_job_failed(conn, str(row["id"]), verdict)
+            cur = await conn.execute(query, (user.id,))
+            row = await cur.fetchone()
     return _row_to_progress(row) if row else None
 
 
@@ -245,7 +353,6 @@ async def current_job(user: CurrentUser, conn: DBConn):
 # Library management (Phase 3)
 # ═════════════════════════════════════════════════════════════════════════════
 
-from asapbackend.services import graph_docs
 
 
 class CollectionInfo(BaseModel):

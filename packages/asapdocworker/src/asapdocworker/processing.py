@@ -82,6 +82,54 @@ def _convert(path: Path):
     return converter.convert(path)
 
 
+def _is_blank(v) -> bool:
+    s = str(v).strip()
+    return s in ("", "nan", "None", "NaT")
+
+
+def _chunk_big_table(tbl, doc, chunker) -> list[tuple[str | None, int | None, str]]:
+    """Row-wise chunks for a table too large for the HybridChunker. Each row
+    becomes one 'column: value; column: value' line (blank cells skipped), and
+    consecutive rows are grouped up to the token budget. Returns
+    (caption, page_no, text) tuples. Rows keep their column names, so each
+    chunk is self-describing without the header row."""
+    df = tbl.export_to_dataframe(doc=doc)
+    caption: str | None = None
+    try:
+        caption = (tbl.caption_text(doc) or "").strip() or None
+    except Exception:
+        pass
+    page_no: int | None = None
+    try:
+        if tbl.prov:
+            page_no = tbl.prov[0].page_no
+    except Exception:
+        pass
+
+    cols = [str(c).strip() for c in df.columns]
+    tokenizer, budget = chunker.tokenizer, chunker.max_tokens
+    groups: list[list[str]] = []
+    cur: list[str] = []
+    cur_tokens = 0
+    for values in df.itertuples(index=False, name=None):
+        pairs = [f"{c}: {str(v).strip()}" for c, v in zip(cols, values) if not _is_blank(v)]
+        if not pairs:
+            continue
+        line = "; ".join(pairs)
+        n = tokenizer.count_tokens(line) + 1
+        if n > budget:  # a single enormous row: keep its head rather than drop it
+            line = line[: budget * 3]
+            n = budget
+        if cur and cur_tokens + n > budget:
+            groups.append(cur)
+            cur, cur_tokens = [], 0
+        cur.append(line)
+        cur_tokens += n
+    if cur:
+        groups.append(cur)
+    return [(caption, page_no, "\n".join(g)) for g in groups]
+
+
 def convert_and_chunk(path: Path) -> ConversionResult:
     """Convert one document and chunk it. Never raises: per-document failures
     are returned as ConversionResult(error=...) so one corrupt file cannot
@@ -98,6 +146,24 @@ def convert_and_chunk(path: Path) -> ConversionResult:
 
         chunker = _get_chunker()
         chunks: list[Chunk] = []
+
+        # Oversized tables (large spreadsheets) are chunked row-wise and
+        # removed from the document before the structure-aware chunker runs,
+        # which would otherwise serialise each one into a single multi-
+        # million-token candidate and exhaust memory.
+        big_tables = [
+            t for t in doc.tables
+            if t.data.num_rows * t.data.num_cols > config.BIG_TABLE_CELLS
+        ]
+        table_chunks: list[tuple[str | None, int | None, str]] = []
+        if big_tables:
+            for t in big_tables:
+                log.warning(
+                    "%s: table of %d x %d cells chunked row-wise",
+                    path.name, t.data.num_rows, t.data.num_cols,
+                )
+                table_chunks.extend(_chunk_big_table(t, doc, chunker))
+            doc.delete_items(node_items=big_tables)
         for seq, chunk in enumerate(chunker.chunk(doc)):
             text = (chunk.text or "").strip()
             if not text:
@@ -125,6 +191,16 @@ def convert_and_chunk(path: Path) -> ConversionResult:
                 seq=len(chunks),
                 page_no=page_no,
                 heading_path=heading_path,
+            ))
+
+        for caption, page_no, text in table_chunks:
+            heading_path = caption or "Table"
+            chunks.append(Chunk(
+                text=text,
+                embed_text=f"Document: {path.name} — {heading_path}\n{text}",
+                seq=len(chunks),
+                page_no=page_no,
+                heading_path=caption,
             ))
 
         if not chunks:

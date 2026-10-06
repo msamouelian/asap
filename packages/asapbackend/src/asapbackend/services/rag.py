@@ -199,18 +199,14 @@ _RELEVANCE_PROMPT = (
 )
 
 
-async def _relevance_filter(question: str, kept: list[dict]) -> list[dict]:
-    """One batched LLM call to drop gate survivors whose content is not
-    actually useful for the question — the bi-encoder can't tell 'discusses
-    biographical notes' from 'is the changelog of the standard that contains
-    rules about biographical notes'. Fails open: any error keeps everything."""
+async def _relevance_batch(question: str, batch: list[dict]) -> list[dict]:
+    """Judge one batch of survivors with a single LLM call. Fails open: any
+    error or unparseable reply keeps the whole batch."""
     from asapbackend.llm.client import completion_cap_kwargs, get_llm_client, sampling_kwargs
 
-    if len(kept) <= 1:
-        return kept
     snippets = "\n\n".join(
         f"[{n}] ({c.get('heading') or 'no heading'}) {c['text'][:500]}"
-        for n, c in enumerate(kept, 1)
+        for n, c in enumerate(batch, 1)
     )
     try:
         resp = await asyncio.wait_for(
@@ -229,17 +225,39 @@ async def _relevance_filter(question: str, kept: list[dict]) -> list[dict]:
         content = resp.choices[0].message.content or ""
         m = re.search(r"\[[\d,\s]*\]", content)
         if not m:
-            return kept
+            return batch
         chosen = {int(x) for x in re.findall(r"\d+", m.group(0))}
-        filtered = [c for n, c in enumerate(kept, 1) if n in chosen]
-        log.info(
-            "RAG relevance filter kept %d of %d survivors: %s",
-            len(filtered), len(kept), sorted(chosen),
-        )
-        return filtered  # an explicit [] is a verdict: nothing useful, inject nothing
+        return [c for n, c in enumerate(batch, 1) if n in chosen]
     except Exception:
-        log.warning("RAG relevance filter failed; keeping all survivors.")
+        log.warning("RAG relevance filter batch failed; keeping its %d survivors.", len(batch))
+        return batch
+
+
+async def _relevance_filter(question: str, kept: list[dict]) -> list[dict]:
+    """Drop gate survivors whose content is not actually useful for the
+    question — the bi-encoder can't tell 'discusses biographical notes' from
+    'is the changelog of the standard that contains rules about biographical
+    notes'. Survivors are judged in batches of rag_relevance_batch snippets,
+    batches in parallel, so a large survivor set (hundreds of spreadsheet
+    rows) never builds one prompt beyond the model's context. Fails open
+    per batch."""
+    if len(kept) <= 1:
         return kept
+    size = max(1, settings.rag_relevance_batch)
+    batches = [kept[i : i + size] for i in range(0, len(kept), size)]
+    sem = asyncio.Semaphore(4)
+
+    async def _guarded(batch: list[dict]) -> list[dict]:
+        async with sem:
+            return await _relevance_batch(question, batch)
+
+    results = await asyncio.gather(*(_guarded(b) for b in batches))
+    filtered = [c for r in results for c in r]
+    log.info(
+        "RAG relevance filter kept %d of %d survivors (%d batch%s)",
+        len(filtered), len(kept), len(batches), "" if len(batches) == 1 else "es",
+    )
+    return filtered  # an explicit [] is a verdict: nothing useful, inject nothing
 
 
 # ── Junk-chunk filter ─────────────────────────────────────────────────────────
@@ -628,24 +646,33 @@ async def retrieve(
             if not _is_junk(r["text"])
         ]
         kept = _gate(semantic, lexical)
-        if kept and settings.rag_relevance_filter:
-            filtered = await _relevance_filter(query, kept)
-            if not filtered:
-                # Lexical evidence overrules a blanket veto — an exact phrase
-                # match is stronger proof than a snippet-based judgment.
-                lex_ids = {r["id"] for r in lexical}
-                filtered = [c for c in kept if c["id"] in lex_ids][:2]
-                if filtered:
-                    log.info(
-                        "RAG relevance veto overruled by lexical evidence: %d kept",
-                        len(filtered),
-                    )
-            kept = filtered
         if not kept:
             return [], distilled
         chunks = await _expand_neighbors(kept)
         if grow_qv is not None:
             chunks = await _grow_sections(chunks, grow_qv)
+        # The relevance filter has the LAST word, after expansion and growth:
+        # both re-admit chunks by adjacency or cosine, which on a homogeneous
+        # document (a spreadsheet) re-adds everything the filter would reject
+        # (2026-10-06: 100 filter survivors grew back to 1,000 injected chunks).
+        if settings.rag_relevance_filter:
+            filtered = await _relevance_filter(query, chunks)
+            if not filtered:
+                # Lexical evidence overrules a blanket veto — an exact phrase
+                # match is stronger proof than a snippet-based judgment.
+                lex_ids = {r["id"] for r in lexical}
+                filtered = [c for c in chunks if c["id"] in lex_ids][:2]
+                if filtered:
+                    log.info(
+                        "RAG relevance veto overruled by lexical evidence: %d kept",
+                        len(filtered),
+                    )
+            chunks = filtered
+        if not chunks:
+            return [], distilled
+        if len(chunks) > settings.rag_max_chunks:
+            log.info("RAG result capped: %d chunks trimmed to %d", len(chunks), settings.rag_max_chunks)
+            chunks = chunks[: settings.rag_max_chunks]
         return chunks, distilled
     except Exception:
         log.exception("RAG retrieval failed — continuing without document context")

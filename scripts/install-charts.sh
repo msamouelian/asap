@@ -36,7 +36,7 @@
 #     [--inference-reasoning-effort '<effort>']  \  # 'none' REQUIRED for OpenAI gpt-5-class + tools on chat completions; omit for LM Studio/gpt-oss
 #     [--inference-min-p '<0..1>']               \  # llama.cpp/LM Studio/vLLM extension; set 0 for api.openai.com (rejects it)
 #     [--inference-temperature '<t>']            \  # -1 omits the parameter (required for OpenAI reasoning-class models)
-#     [--inference-context-window-tokens '<n>']  \  # model context size, drives the UI usage percentage
+#     [--inference-context-window-tokens '<n>']  \  # model context size (default 1050000 = GPT-5.6); drives the UI usage percentage
 #     [--embedding-base-url 'http://vllm-embedding:8000/v1'] \  # embedding endpoint (default: in-cluster vLLM)
 #     [--embedding-model 'BAAI/bge-small-en-v1.5']           \  # embedding model; vllm serves it, every consumer names it
 #     [--embedding-api-key '<key>']                          \  # bearer token for a HOSTED embedding endpoint; omit for in-cluster vLLM

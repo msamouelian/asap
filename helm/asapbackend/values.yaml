@@ -22,9 +22,11 @@ env:
   inferenceBaseUrl: ""
   inferenceModel: ""
   # Maximum tokens the model + hardware can hold in its context window.
-  # Used to compute context-usage percentage shown in the UI.
-  # Example: gpt-oss-20b on M4 Pro 48GB = 131072; GPT-5.6 = 400000
-  inferenceContextWindowTokens: "131072"
+  # Used to compute context-usage percentage shown in the UI and named in
+  # the context-overflow error message. Default matches the GPT-5.6 family
+  # (1,050,000). Override for smaller models, e.g. gpt-oss-20b on an M4 Pro
+  # 48 GB = 131072. Set with --inference-context-window-tokens.
+  inferenceContextWindowTokens: "1050000"
   # Sampling. min_p is a llama.cpp/LM Studio/vLLM extension — the real
   # OpenAI API 400s on it, so set 0 when inferenceBaseUrl is api.openai.com.
   # Temperature -1 omits the parameter from every request (required for

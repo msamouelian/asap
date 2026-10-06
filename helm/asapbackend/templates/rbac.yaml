@@ -23,6 +23,11 @@ rules:
   - apiGroups: ["batch"]
     resources: ["jobs/status"]
     verbs: ["get"]
+  # Read-only pod access so a dead document-worker's termination reason
+  # (e.g. OOMKilled) can be reported to the user (routers/documents.py).
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

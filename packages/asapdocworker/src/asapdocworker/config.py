@@ -30,6 +30,11 @@ EMBEDDING_API_KEY: str = os.environ.get("EMBEDDING_API_KEY", "")
 # Chunking: docling's HybridChunker is tokenizer-aware; cap below the
 # embedding model's 512-token window to leave room for the contextual prefix.
 CHUNK_MAX_TOKENS: int = int(os.environ.get("CHUNK_MAX_TOKENS", "384"))
+# Tables with more cells than this bypass docling's HybridChunker, which
+# serialises a whole table into one candidate text before splitting it: a
+# 6,909 x 41 spreadsheet became a 4.7M-token string and the worker was
+# OOM-killed at 4 GiB (2026-10-06). Such tables are chunked row-wise instead.
+BIG_TABLE_CELLS: int = int(os.environ.get("BIG_TABLE_CELLS", "2000"))
 
 # Parallel docling conversions. Document parsing is CPU-bound; keep modest on
 # the shared dev node. On a GPU cluster docling accelerates automatically.

@@ -321,4 +321,34 @@ async def run(
 
     except Exception as exc:
         log.exception("Agent loop error")
-        yield {"type": "error", "detail": str(exc)}
+        yield {"type": "error", "detail": _user_facing_error(exc)}
+
+
+_CONTEXT_ERROR_MARKERS = (
+    "context_length_exceeded", "maximum context length", "context window",
+    "too many tokens", "reduce the length of the messages", "prompt is too long",
+    "exceeds the model", "input length", "max_tokens",
+)
+
+
+def _user_facing_error(exc: Exception) -> str:
+    """Translate an inference-server error into something a user can act on.
+    A context-window overflow is the one case with a clear remedy, and the
+    raw API text (token counts, request ids) only confuses."""
+    text = str(exc)
+    code = getattr(exc, "code", None) or ""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error") if isinstance(body.get("error"), dict) else body
+        code = code or str(err.get("code") or "")
+        text = f"{text} {err.get('message') or ''}"
+    probe = f"{code} {text}".lower()
+    if any(m in probe for m in _CONTEXT_ERROR_MARKERS):
+        return (
+            "This conversation has grown beyond the model's context window "
+            f"({settings.inference_context_window_tokens:,} tokens), so the model "
+            "could not read it. Start a new conversation to continue; large "
+            "retrieved passages and tool results from earlier turns are what "
+            "fill the window."
+        )
+    return str(exc)

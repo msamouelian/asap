@@ -75,8 +75,12 @@ class Settings(BaseSettings):
     # APIs. Also passed to Neo4j's GenAI plugin for hybrid-search query
     # embedding, and its presence switches off vLLM-only request parameters.
     embedding_api_key: str = ""
-    rag_semantic_candidates: int = 30
-    rag_max_chunks: int = 8
+    # Retrieval is bounded by the relevance gate and the LLM relevance filter,
+    # not by a small top-k: a list-style question over a spreadsheet can have
+    # hundreds of genuinely relevant rows. These caps exist only to stop a
+    # runaway case from flooding the prompt (2026-10-06; previously 30 / 8).
+    rag_semantic_candidates: int = 1000
+    rag_max_chunks: int = 1000
     rag_semantic_floor: float = 0.82
     rag_lexical_floor: float = 5.0
     # Neighbor expansion: pull this many adjacent chunks (by seq) on each
@@ -99,7 +103,11 @@ class Settings(BaseSettings):
     rag_grow_gap: int = 2
     rag_grow_max_forward: int = 30
     rag_grow_max_backward: int = 3
-    rag_total_max_chunks: int = 40
+    rag_total_max_chunks: int = 1000
+    # The relevance filter judges survivors in batches of this many snippets
+    # (parallel LLM calls) so a large survivor set never builds one prompt
+    # bigger than the model's context.
+    rag_relevance_batch: int = 40
 
     # Default sampling temperature for the conversational agent. Low by
     # design: the agent's output is Cypher, tool selections, and figures,
@@ -134,7 +142,7 @@ class Settings(BaseSettings):
     # hardware. Used to compute context-usage percentage shown in the UI.
     # Set in values.yaml (inferenceContextWindowTokens) and override with
     # --set at helm install time when changing models or hardware.
-    inference_context_window_tokens: int = 131072
+    inference_context_window_tokens: int = 1050000  # GPT-5.6 family; chart overrides
 
     # -------------------------------------------------------------------------
     # Reasoning tokens

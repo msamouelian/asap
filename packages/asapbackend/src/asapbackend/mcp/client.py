@@ -144,17 +144,30 @@ def get_cached_metadata() -> str:
 
 
 async def refresh_graph_context(metadata_query: str) -> None:
-    """Fetch schema and metadata from the graph and update the caches."""
+    """Build the schema and metadata for the system prompt and update the caches.
+
+    Both payloads exclude the document library (see services/graph_context).
+    The schema comes from Neo4j's built-in db.schema.* procedures via the
+    backend driver, not from the MCP get-schema tool: that tool needs
+    apoc.meta.schema, which the procedure allowlist no longer loads, and the
+    model no longer has the tool anyway.
+    """
     global _schema_cache, _metadata_cache
-    try:
-        _schema_cache = await call_tool("get-schema", {})
-        log.info("Graph schema loaded (%d chars).", len(_schema_cache))
-    except Exception as exc:
-        log.warning("Could not load graph schema: %s", exc)
+    from asapbackend.services import graph_context
 
     try:
-        _metadata_cache = await call_tool("read-cypher", {"query": metadata_query})
-        log.info("Graph metadata loaded (%d chars).", len(_metadata_cache))
+        _schema_cache = await graph_context.build_schema()
+        log.info("Graph schema built (%d chars, document library excluded).", len(_schema_cache))
+    except Exception as exc:
+        log.warning("Could not build graph schema: %s", exc)
+    try:
+        raw = await call_tool("read-cypher", {"query": metadata_query})
+        rows = json.loads(raw)
+        if not isinstance(rows, list):
+            raise ValueError(f"unexpected metadata payload: {raw[:120]!r}")
+        kept = graph_context.filter_metadata(rows)
+        _metadata_cache = graph_context.render_metadata(kept)
+        log.info("Graph metadata loaded (%d of %d rows kept, %d chars).", len(kept), len(rows), len(_metadata_cache))
     except Exception as exc:
         log.warning("Could not load graph metadata: %s", exc)
 

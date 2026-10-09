@@ -14,7 +14,6 @@ Security posture:
 """
 
 import json
-import re
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +22,8 @@ from pydantic import BaseModel
 from asapbackend.auth.dependencies import require_role
 from asapbackend.config import settings
 from asapbackend.mcp import client as mcp_client
+from asapbackend.tools import cypher_guard
+from asapbackend.tools.cypher_guard import CypherRejected
 
 router = APIRouter(
     prefix="/cypher",
@@ -30,12 +31,6 @@ router = APIRouter(
     dependencies=[Depends(require_role("user"))],
 )
 
-# Write/DDL clauses that must never appear. The MCP layer is the real
-# enforcement; this just fails fast with a clearer message.
-_WRITE_CLAUSE = re.compile(
-    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|LOAD\s+CSV)\b",
-    re.IGNORECASE,
-)
 
 
 class CypherRunRequest(BaseModel):
@@ -51,14 +46,14 @@ class CypherRunResponse(BaseModel):
 
 @router.post("/run", response_model=CypherRunResponse)
 async def run_cypher(body: CypherRunRequest):
-    query = body.query.strip()
-    if not query:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Query is empty.")
-    if _WRITE_CLAUSE.search(query):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "Only read-only queries are allowed (write clause detected).",
-        )
+    # Same policy as the LLM's read-cypher tool: lexical pre-filter plus
+    # planner rules (read-only, no unlabelled scans, allow-listed
+    # procedures, document library off limits). The MCP layer's own
+    # read-only check remains behind it.
+    try:
+        query = await cypher_guard.check(body.query)
+    except CypherRejected as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
 
     try:
         raw = await mcp_client.call_tool("read-cypher", {"query": query})

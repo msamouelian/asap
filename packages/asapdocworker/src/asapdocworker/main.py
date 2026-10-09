@@ -141,7 +141,7 @@ def _delete_collection_tree(driver, collection_id: str) -> None:
             """
             MATCH (dc:DocumentCollection {id: $id})
             OPTIONAL MATCH (dc)-[:CONTAINS]->(d:Document)
-            OPTIONAL MATCH (d)-[:HAS_CHUNK]->(ch:DocumentChunk)
+            OPTIONAL MATCH (d)-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
             DETACH DELETE dc, d, ch
             """,
             id=collection_id,
@@ -172,7 +172,7 @@ def _write_document(driver, collection_id: str, doc: dict, chunks: list[dict]) -
                 UNWIND $rows AS row
                 CREATE (ch:DocumentChunk {id: row.id, text: row.text, seq: row.seq})
                 SET ch.page_no = row.page_no, ch.heading_path = row.heading_path
-                CREATE (d)-[:HAS_CHUNK]->(ch)
+                CREATE (d)-[:HAS_DOCUMENT_CHUNK]->(ch)
                 WITH ch, row
                 CALL db.create.setNodeVectorProperty(ch, 'embedding', row.embedding)
                 """,

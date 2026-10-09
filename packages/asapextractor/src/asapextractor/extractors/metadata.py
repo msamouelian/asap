@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 # Node schema definitions
 # ---------------------------------------------------------------------------
 
+# The document library (DocumentCollection, Document, DocumentChunk, the CONTAINS
+# and HAS_DOCUMENT_CHUNK relationships, and their properties) is deliberately NOT
+# described here. These nodes are user-uploaded, private, and off limits to the
+# chat model; the only consumer of this catalogue is the model's system prompt
+# (asapbackend services/graph_context.py also filters them as defence in depth).
+# Keep it that way when adding entries.
 NODE_SCHEMAS: list[dict[str, Any]] = [
     {
         "label": "Collection",
@@ -73,47 +79,6 @@ NODE_SCHEMAS: list[dict[str, Any]] = [
         "aspace_endpoint": "none (derived from Note content)",
         "unique_key": "chunk_id",
         "neo4j_label": "NoteChunk",
-    },
-    {
-        "label": "DocumentCollection",
-        "description": (
-            "A user-uploaded library of supporting documents (standards, guidelines, research "
-            "material) used for retrieval-augmented answers. NOT extracted from ArchivesSpace: "
-            "uploaded through the ASAP UI and preserved across extraction runs. visibility is "
-            "'private' (only the uploader) or 'shared' (all users); archived collections are "
-            "hidden from selection but retained for conversation history. Contains Document "
-            "nodes via CONTAINS."
-        ),
-        "aspace_jsonmodel": "none (user-uploaded)",
-        "aspace_endpoint": "none (user-uploaded)",
-        "unique_key": "id",
-        "neo4j_label": "DocumentCollection",
-    },
-    {
-        "label": "Document",
-        "description": (
-            "A single document (PDF, Word, Markdown, text) inside a DocumentCollection. Carries "
-            "file metadata only — the document text lives in its DocumentChunk nodes via "
-            "HAS_CHUNK. NOT extracted from ArchivesSpace; preserved across extraction runs."
-        ),
-        "aspace_jsonmodel": "none (user-uploaded)",
-        "aspace_endpoint": "none (user-uploaded)",
-        "unique_key": "id",
-        "neo4j_label": "Document",
-    },
-    {
-        "label": "DocumentChunk",
-        "description": (
-            "A retrieval-sized slice of an uploaded Document's text, with a semantic embedding "
-            "covered by the document_chunk_embedding vector index and full-text coverage via "
-            "document_chunk_fulltext. Used for retrieval-augmented answers; chunks retrieved "
-            "for a conversation turn are referenced from Postgres for rehydration. NOT "
-            "extracted from ArchivesSpace; preserved across extraction runs."
-        ),
-        "aspace_jsonmodel": "none (user-uploaded)",
-        "aspace_endpoint": "none (derived from Document content)",
-        "unique_key": "id",
-        "neo4j_label": "DocumentChunk",
     },
     {
         "label": "Extent",
@@ -293,24 +258,12 @@ RELATIONSHIP_SCHEMAS: list[dict[str, Any]] = [
     },
     {
         "type": "HAS_CHUNK",
-        "from_labels": "Note, Document",
-        "to_labels": "NoteChunk, DocumentChunk",
+        "from_labels": "Note",
+        "to_labels": "NoteChunk",
         "description": (
-            "Links a text-bearing node to its retrieval-sized chunks used for semantic search: "
-            "IndexableNote to NoteChunk (archival note content) and Document to DocumentChunk "
-            "(uploaded document content). Chunks are ordered by their seq property. For note "
-            "chunks, traverse (parent)-[:HAS_NOTE]->(note)-[:HAS_CHUNK]->(chunk) to find the "
-            "owning record; for document chunks, traverse "
-            "(dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_CHUNK]->(chunk)."
-        ),
-    },
-    {
-        "type": "CONTAINS",
-        "from_labels": "DocumentCollection",
-        "to_labels": "Document",
-        "description": (
-            "Links a user-uploaded DocumentCollection to the Documents inside it. A collection "
-            "contains one or more documents."
+            "Links an IndexableNote to its retrieval-sized NoteChunk slices used for semantic "
+            "search over archival note content. Chunks are ordered by their seq property. "
+            "Traverse (parent)-[:HAS_NOTE]->(note)-[:HAS_CHUNK]->(chunk) to find the owning record."
         ),
     },
     {
@@ -1763,201 +1716,6 @@ PROPERTY_SCHEMAS: list[dict[str, Any]] = [
         "description": "Direct link to this accession in the ArchivesSpace staff interface. ALWAYS return this alongside the title so the answer can display the title as a hyperlink.",
         "data_type": "String",
         "required": False,
-    },
-    # DocumentCollection (user-uploaded RAG library)
-    {
-        "id": "DocumentCollection.id",
-        "node_label": "DocumentCollection",
-        "property": "id",
-        "description": "UUID unique key for this collection; referenced from Postgres scope tables.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.title",
-        "node_label": "DocumentCollection",
-        "property": "title",
-        "description": "User-supplied name of the document collection.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.description",
-        "node_label": "DocumentCollection",
-        "property": "description",
-        "description": "User-supplied description of the collection's contents and purpose.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.source_location",
-        "node_label": "DocumentCollection",
-        "property": "source_location",
-        "description": "Name of the file or folder the user uploaded, as provided by the browser. Informational provenance only — original files are not retained after processing.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.uploaded_by",
-        "node_label": "DocumentCollection",
-        "property": "uploaded_by",
-        "description": "Postgres asap_user id (UUID) of the user who uploaded the collection.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.visibility",
-        "node_label": "DocumentCollection",
-        "property": "visibility",
-        "description": "'private' (visible only to the uploader) or 'shared' (visible to all users).",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.archived",
-        "node_label": "DocumentCollection",
-        "property": "archived",
-        "description": "True when the collection is archived: hidden from selection but retained so past conversations that used it can still be rehydrated.",
-        "data_type": "Boolean",
-        "required": True,
-    },
-    {
-        "id": "DocumentCollection.status",
-        "node_label": "DocumentCollection",
-        "property": "status",
-        "description": "Processing lifecycle: 'processing' while the ingestion job runs, 'ready' when usable, 'failed' on error. Only 'ready' collections can be enabled for RAG.",
-        "data_type": "String",
-        "required": True,
-    },
-    # Document
-    {
-        "id": "Document.id",
-        "node_label": "Document",
-        "property": "id",
-        "description": "UUID unique key for this document.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "Document.file_name",
-        "node_label": "Document",
-        "property": "file_name",
-        "description": "Original file name of the uploaded document (e.g. 'Polaroid Marketing 1972.pdf').",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "Document.relative_path",
-        "node_label": "Document",
-        "property": "relative_path",
-        "description": "Path of the document within the uploaded folder, including the file name.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "Document.format",
-        "node_label": "Document",
-        "property": "format",
-        "description": "Detected document format (e.g. 'pdf', 'docx', 'md', 'txt').",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "Document.size_bytes",
-        "node_label": "Document",
-        "property": "size_bytes",
-        "description": "Size of the uploaded file in bytes.",
-        "data_type": "Integer",
-        "required": True,
-    },
-    {
-        "id": "Document.page_count",
-        "node_label": "Document",
-        "property": "page_count",
-        "description": "Number of pages, for paginated formats such as PDF. Absent for plain text.",
-        "data_type": "Integer",
-        "required": False,
-    },
-    {
-        "id": "Document.sha256",
-        "node_label": "Document",
-        "property": "sha256",
-        "description": "SHA-256 checksum of the uploaded file, for de-duplication and integrity.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "Document.chunk_count",
-        "node_label": "Document",
-        "property": "chunk_count",
-        "description": "Number of DocumentChunk nodes generated from this document.",
-        "data_type": "Integer",
-        "required": True,
-    },
-    {
-        "id": "Document.processing_status",
-        "node_label": "Document",
-        "property": "processing_status",
-        "description": "'ok' or 'failed' — a single unreadable file does not fail the whole collection; failures are recorded here with the error property.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "Document.uploaded_at",
-        "node_label": "Document",
-        "property": "uploaded_at",
-        "description": "Timestamp (UTC) when the document was uploaded and processed.",
-        "data_type": "DateTime",
-        "required": True,
-    },
-    # DocumentChunk
-    {
-        "id": "DocumentChunk.id",
-        "node_label": "DocumentChunk",
-        "property": "id",
-        "description": "UUID unique key for this chunk; referenced from Postgres conversation_message_document_chunk for conversation rehydration.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentChunk.text",
-        "node_label": "DocumentChunk",
-        "property": "text",
-        "description": "The source document text of this chunk. Shown to users as retrieval evidence and injected into conversations for retrieval-augmented answers.",
-        "data_type": "String",
-        "required": True,
-    },
-    {
-        "id": "DocumentChunk.seq",
-        "node_label": "DocumentChunk",
-        "property": "seq",
-        "description": "0-based position of this chunk within its parent document's reading order.",
-        "data_type": "Integer",
-        "required": True,
-    },
-    {
-        "id": "DocumentChunk.page_no",
-        "node_label": "DocumentChunk",
-        "property": "page_no",
-        "description": "Page number the chunk starts on, for paginated formats. Used in citations.",
-        "data_type": "Integer",
-        "required": False,
-    },
-    {
-        "id": "DocumentChunk.heading_path",
-        "node_label": "DocumentChunk",
-        "property": "heading_path",
-        "description": "Section heading context for the chunk (e.g. 'Product History > SX-70 Launch'). Used in citations.",
-        "data_type": "String",
-        "required": False,
-    },
-    {
-        "id": "DocumentChunk.embedding",
-        "node_label": "DocumentChunk",
-        "property": "embedding",
-        "description": f"{config.EMBEDDING_DIMENSIONS}-dimensional semantic embedding of the chunk text with document context, covered by the document_chunk_embedding vector index. Query it with vector search or vector.similarity.cosine; NEVER return this property directly — it is a large float array with no human-readable value.",
-        "data_type": f"Vector ({config.EMBEDDING_DIMENSIONS} floats)",
-        "required": True,
     },
 ]
 

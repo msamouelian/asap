@@ -32,6 +32,11 @@ def _get_driver() -> Driver:
     return _driver
 
 
+def get_driver() -> Driver:
+    """Shared Neo4j driver (also used by tools/cypher_guard for EXPLAIN)."""
+    return _get_driver()
+
+
 # ── Reads ─────────────────────────────────────────────────────────────────────
 
 def list_visible_collections(user_id: str) -> list[dict[str, Any]]:
@@ -94,7 +99,7 @@ def collection_chunk_ids(collection_id: str) -> list[str]:
     with _get_driver().session() as s:
         result = s.run(
             """
-            MATCH (:DocumentCollection {id: $id})-[:CONTAINS]->(:Document)-[:HAS_CHUNK]->(ch:DocumentChunk)
+            MATCH (:DocumentCollection {id: $id})-[:CONTAINS]->(:Document)-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
             RETURN ch.id AS id
             """,
             id=collection_id,
@@ -110,7 +115,7 @@ def get_chunks_by_ids(ids: list[str]) -> list[dict[str, Any]]:
     with _get_driver().session() as s:
         result = s.run(
             """
-            MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_CHUNK]->(ch:DocumentChunk)
+            MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
             WHERE ch.id IN $ids
             RETURN ch.id AS id, ch.text AS text, ch.page_no AS page_no,
                    ch.heading_path AS heading, ch.seq AS seq,
@@ -143,7 +148,7 @@ def mark_collection_failed(job: dict[str, Any]) -> None:
             """
             MATCH (dc:DocumentCollection {id: $id})
             OPTIONAL MATCH (dc)-[:CONTAINS]->(d:Document)
-            OPTIONAL MATCH (d)-[:HAS_CHUNK]->(ch:DocumentChunk)
+            OPTIONAL MATCH (d)-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
             DETACH DELETE d, ch
             """,
             id=job["document_collection_id"],
@@ -172,7 +177,7 @@ def delete_collection_tree(collection_id: str) -> None:
             """
             MATCH (dc:DocumentCollection {id: $id})
             OPTIONAL MATCH (dc)-[:CONTAINS]->(d:Document)
-            OPTIONAL MATCH (d)-[:HAS_CHUNK]->(ch:DocumentChunk)
+            OPTIONAL MATCH (d)-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
             DETACH DELETE dc, d, ch
             """,
             id=collection_id,

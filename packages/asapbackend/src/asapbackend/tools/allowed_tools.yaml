@@ -9,20 +9,14 @@
 #                         queries; causes excessive LLM processing time.
 #   write-cypher        — database is already configured read-only at the MCP
 #                         server level; excluded here for defence in depth.
+#   get-schema          — removed 2026-10. The schema is built at startup from
+#                         db.schema.* (services/graph_context.py), scrubbed of
+#                         the document library, and injected into the system
+#                         prompt. Letting the model call the tool would hand
+#                         it the unfiltered schema (and the tool depends on
+#                         apoc.meta.schema, which is no longer loaded).
 
 tools:
-  - name: get-schema
-    description: >
-      Returns the Neo4j graph schema including all node labels, relationship
-      types, and their properties. Call this to understand the graph structure
-      before constructing Cypher queries.
-    arguments:
-      - name: properties
-        type: dict
-        required: true
-        description: >
-          Filter object — pass an empty dict {} to retrieve the full schema.
-
   - name: read-cypher
     description: >
       Execute a read-only Cypher query against the Neo4j graph database and

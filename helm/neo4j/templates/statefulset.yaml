@@ -48,12 +48,27 @@ spec:
             - name: NEO4J_PLUGINS
               value: {{ .Values.plugins | toJson | quote }}
 
-            # Allow APOC, GDS, and GenAI procedures/functions to run without restriction.
-            # ai.* covers the current (non-deprecated) genai namespace: ai.text.embed, etc.
-            - name: NEO4J_dbms_security_procedures_unrestricted
-              value: "apoc.*,gds.*,genai.*,ai.*"
+            # Plugin procedures/functions are limited to exactly what ASAP code calls:
+            #   apoc.periodic.iterate     extractor + kggenerator batched deletes/relabels
+            #   apoc.create.relationship  kggenerator (allow-listed dynamic rel types)
+            #   ai.text.embed             hybrid search query embedding
+            # Everything else under apoc.* (load.*, import.*, export.*, cypher.*,
+            # util.sleep …) and the genai chat/completion functions are not
+            # loaded at all, so no caller — LLM, UI, or a Browser session — can
+            # use them. Note: dbms.security.procedures.unrestricted is NOT set
+            # here on purpose; the Neo4j Docker image appends "apoc.*,genai.*"
+            # to it whenever those plugins are listed in NEO4J_PLUGINS, so the
+            # allowlist above is the effective control.
             - name: NEO4J_dbms_security_procedures_allowlist
-              value: "apoc.*,gds.*,genai.*,ai.*"
+              value: {{ .Values.security.procedureAllowlist | quote }}
+
+            # LOAD CSV: no file:// URLs, and no http(s) to cluster/private
+            # ranges, so a query cannot read the pod filesystem or reach
+            # in-cluster services from inside the database.
+            - name: NEO4J_dbms_security_allow__csv__import__from__file__urls
+              value: "false"
+            - name: NEO4J_internal_dbms_cypher__ip__blocklist
+              value: {{ .Values.security.cypherIpBlocklist | quote }}
 
             # Do not send anonymous usage data to Neo4j.
             - name: NEO4J_dbms_usage__report_enabled

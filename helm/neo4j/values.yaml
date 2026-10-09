@@ -20,8 +20,26 @@ auth:
 # automatically from the Neo4j plugin repository on first boot.
 plugins:
   - apoc
-  - graph-data-science
   - genai
+  # graph-data-science removed 2026-10: nothing in ASAP calls gds.*, and it
+  # was reachable from LLM-generated Cypher.
+
+# Procedure lockdown (see templates/statefulset.yaml for the rationale).
+security:
+  # Exactly the plugin procedures/functions ASAP code calls. Applies to
+  # functions as well as procedures: the rest of apoc.* and the genai
+  # plugin's ai.text.chat/completion functions are not loaded at all.
+  procedureAllowlist: "apoc.periodic.iterate,apoc.create.relationship,ai.text.embed"
+  # Outbound ranges that Cypher-initiated HTTP (LOAD CSV, the genai plugin)
+  # may never touch: loopback, link-local/metadata, and the host LAN ranges
+  # (the Mac running k3d, LM Studio, anything on the office network). The
+  # cluster service range (10.43.0.0/16 on k3s) is deliberately NOT listed:
+  # the genai plugin must reach vllm-embedding there, and the blocklist has
+  # no exception mechanism. In-cluster reach from Cypher is instead closed
+  # by the procedure allowlist above (no apoc.load/import/export) and by the
+  # backend's Cypher guard (no LOAD CSV on the LLM/UI paths); ai.text.embed
+  # ignores any per-call endpoint and only ever calls the configured vLLM.
+  cypherIpBlocklist: "127.0.0.0/8,169.254.0.0/16,0.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10,::1/128"
 
 genai:
   # Base URL of the OpenAI-compatible embedding server.

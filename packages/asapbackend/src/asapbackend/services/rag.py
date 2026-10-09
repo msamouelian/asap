@@ -71,7 +71,7 @@ def _lucene_query(topic: str) -> str:
 # ── Retrieval queries (read-only MCP path) ───────────────────────────────────
 
 _SEMANTIC_CYPHER = """
-MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_CHUNK]->(ch:DocumentChunk)
+MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
 WHERE dc.id IN $ids AND ch.embedding IS NOT NULL
 WITH dc, d, ch, vector.similarity.cosine(ch.embedding, $qv) AS score
 ORDER BY score DESC
@@ -84,7 +84,7 @@ RETURN ch.id AS id, ch.text AS text, ch.page_no AS page_no,
 _LEXICAL_CYPHER = """
 CALL db.index.fulltext.queryNodes('document_chunk_fulltext', $lucene)
 YIELD node, score
-MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_CHUNK]->(node)
+MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document)-[:HAS_DOCUMENT_CHUNK]->(node)
 WHERE dc.id IN $ids
 RETURN node.id AS id, node.text AS text, node.page_no AS page_no,
        node.heading_path AS heading, node.seq AS seq, d.id AS document_id,
@@ -95,7 +95,7 @@ LIMIT 10
 
 _NEIGHBOR_CYPHER = """
 UNWIND $targets AS t
-MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document {id: t.doc})-[:HAS_CHUNK]->(ch:DocumentChunk)
+MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document {id: t.doc})-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
 WHERE ch.seq >= t.lo AND ch.seq <= t.hi
 RETURN DISTINCT ch.id AS id, ch.text AS text, ch.page_no AS page_no,
        ch.heading_path AS heading, ch.seq AS seq, d.id AS document_id,
@@ -104,7 +104,7 @@ RETURN DISTINCT ch.id AS id, ch.text AS text, ch.page_no AS page_no,
 
 _GROW_CYPHER = """
 UNWIND $targets AS t
-MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document {id: t.doc})-[:HAS_CHUNK]->(ch:DocumentChunk)
+MATCH (dc:DocumentCollection)-[:CONTAINS]->(d:Document {id: t.doc})-[:HAS_DOCUMENT_CHUNK]->(ch:DocumentChunk)
 WHERE ch.seq >= t.lo AND ch.seq <= t.hi AND ch.embedding IS NOT NULL
 RETURN DISTINCT ch.id AS id, ch.text AS text, ch.page_no AS page_no,
        ch.heading_path AS heading, ch.seq AS seq, d.id AS document_id,

@@ -42,7 +42,7 @@ from asapbackend import mcp
 from asapbackend.config import settings
 from asapbackend.llm.client import get_llm_client, sampling_kwargs
 from asapbackend.services.conversation import append_message, update_prompt_tokens
-from asapbackend.tools import hybrid_search, kg_search, record_text
+from asapbackend.tools import cypher_guard, hybrid_search, kg_search, record_text
 from asapbackend.tools.validator import ToolCallError, validate_tool_call
 
 log = logging.getLogger(__name__)
@@ -283,6 +283,11 @@ async def run(
                         elif name == kg_search.TOOL_NAME:
                             result = await kg_search.run(**args)
                         else:
+                            if name == "read-cypher":
+                                # Enforcement point 3 — untrusted Cypher goes
+                                # through the guard (lexical + planner rules)
+                                # before it can reach the MCP server.
+                                args = {**args, "query": await cypher_guard.check(str(args.get("query", "")))}
                             result = await mcp.client.call_tool(name, args)
                     except ToolCallError as exc:
                         log.warning("Blocked tool call '%s': %s", name, exc)

@@ -40,13 +40,18 @@ def _neo4j_auth_header() -> str | None:
 
 
 def _mcp_url() -> str:
-    return settings.neo4j_mcp_url.rstrip("/") + "/mcp"
+    # neo4j/mcp v2: one endpoint per database, /db/{database}/mcp.
+    return f"{settings.neo4j_mcp_url.rstrip('/')}/db/{settings.neo4j_mcp_database}/mcp"
 
 
 def _request_headers(session_id: str | None = None) -> dict:
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream",
+        # neo4j/mcp v2: the server has no configured URI; each request names
+        # the Bolt target. The server only accepts hosts in its allow-list
+        # (helm/neo4j-mcp values: neo4j.allowedUris).
+        "X-Neo4j-MCP-URI": settings.neo4j_uri,
     }
     auth = _neo4j_auth_header()
     if auth:

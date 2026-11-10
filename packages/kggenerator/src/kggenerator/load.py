@@ -178,6 +178,100 @@ class Neo4jLoader:
 
     # ------------------------------------------------------------------
 
+    def backstop_tenures(self, run_id: str) -> dict[str, int]:
+        """Add hasOrHadLeader pairs the LLM missed, from biographical notes.
+
+        See kggenerator/tenure.py for the policy. Runs after twin matching
+        (it needs extracted_agent_twin to find a person's notes) and is
+        idempotent: an existing leader edge between the pair means skip.
+        """
+        from kggenerator.tenure import build_org_index, find_tenures, resolve_org
+
+        spec = RELATIONS_BY_NAME["hasOrHadLeader"]
+        bodies = self._run("""
+            MATCH (b:InferredAgent) WHERE b.agent_type = 'corporate_body'
+            RETURN b.id AS id, b.display_name AS display_name,
+                   b.alternate_names AS alternate_names
+        """)
+        index = build_org_index(bodies)
+
+        # Each twinned person with the notes that describe them: the Agent's
+        # own notes plus bioghist/abstract notes of collections they created,
+        # restricted to records the KG already cites for that person.
+        people = self._run("""
+            MATCH (p:InferredAgent {agent_type: 'person'})
+            WHERE p.extracted_agent_twin IS NOT NULL
+            MATCH (a:Agent {uri: p.extracted_agent_twin})
+            OPTIONAL MATCH (a)-[:HAS_NOTE]->(an:Note)
+            WITH p, a, collect({uri: a.uri, text: an.content}) AS agent_notes
+            OPTIONAL MATCH (c:Collection)-[:CREATED_BY]->(a)
+            WHERE c.uri IN p.source_uri
+            OPTIONAL MATCH (c)-[:HAS_NOTE]->(cn:Note)
+            WHERE cn.type IN ['bioghist', 'abstract']
+            WITH p, agent_notes, collect({uri: c.uri, text: cn.content}) AS coll_notes
+            RETURN p.id AS id, p.display_name AS name, agent_notes + coll_notes AS notes
+        """)
+        now = datetime.now(timezone.utc).isoformat()
+        stats = {"people_scanned": len(people), "tenures_found": 0,
+                 "org_unresolved": 0, "already_present": 0, "edges_added": 0}
+        edges: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for person in people:
+            for note in person["notes"]:
+                if not note.get("text"):
+                    continue
+                for t in find_tenures(note["text"]):
+                    stats["tenures_found"] += 1
+                    org_id = resolve_org(t.org, index)
+                    if not org_id:
+                        stats["org_unresolved"] += 1
+                        logger.info("Tenure backstop: org %r for %s not resolved — skipped.",
+                                    t.org, person["name"])
+                        continue
+                    key = (person["id"], org_id, t.date)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    present = self._run("""
+                        MATCH (p:Inferred {id: $p})-[r:RICO_IS_OR_WAS_LEADER_OF]->(o:Inferred {id: $o})
+                        RETURN count(r) AS n
+                    """, p=person["id"], o=org_id)[0]["n"]
+                    if present:
+                        stats["already_present"] += 1
+                        continue
+                    base = {
+                        "source_uri": [note["uri"]],
+                        "quote": t.sentence, "quotes": [t.sentence],
+                        "confidence": 1.0, "date": t.date,
+                        "kg_run_id": run_id, "create_time": now,
+                        "creating_user": "kggenerator", "method": "pattern",
+                    }
+                    edges.append({"from": org_id, "to": person["id"],
+                                  "type": spec["neo4j_type"],
+                                  "props": {**base, "rico_uri": spec["uri"]}})
+                    edges.append({"from": person["id"], "to": org_id,
+                                  "type": spec["inverse_neo4j_type"],
+                                  "props": {**base, "rico_uri": spec["inverse_uri"]}})
+                    logger.info("Tenure backstop: %s — %s of %r (%s).",
+                                person["name"], t.role, t.org, t.date)
+        if edges:
+            self._run("""
+                UNWIND $edges AS e
+                MATCH (a:Inferred {id: e.from}), (b:Inferred {id: e.to})
+                CALL apoc.create.relationship(a, e.type, e.props, b) YIELD rel
+                RETURN count(rel)
+            """, edges=edges)
+        stats["edges_added"] = len(edges)
+        logger.info("Tenure backstop: %s", ", ".join(f"{k}={v}" for k, v in stats.items()))
+        return stats
+
+    def latest_run_id(self) -> str | None:
+        rows = self._run("MATCH (n:Inferred) WHERE n.kg_run_id IS NOT NULL "
+                         "RETURN max(n.kg_run_id) AS run_id")
+        return rows[0]["run_id"] if rows else None
+
+    # ------------------------------------------------------------------
+
     def set_embeddings(self, graph: dict[str, Any],
                        node_id_of: dict[str, str]) -> None:
         """Embed name + alternates + description via vLLM (same model as the
@@ -358,7 +452,16 @@ def load_resolution(resolution: dict[str, Any]) -> dict[str, int]:
         n_edges = loader.load_relations(graph, node_id_of, run_id)
         loader.set_embeddings(graph, node_id_of)
         n_twins = loader.match_twins(graph, node_id_of)
+        backstop = loader.backstop_tenures(run_id)
         used = {r["type"] for r in graph["relations"]} & set(RELATIONS_BY_NAME)
+        used.add("hasOrHadLeader")  # the backstop may add it even if the LLM never did
         loader.write_schema_metadata(used)
     return {"nodes": len(node_id_of), "directed_edges": n_edges,
-            "twins": n_twins}
+            "twins": n_twins, "backstop_edges": backstop["edges_added"]}
+
+
+def run_backstop_only() -> dict[str, int]:
+    """Apply the tenure backstop to the graph as it stands (no wipe)."""
+    with Neo4jLoader() as loader:
+        run_id = loader.latest_run_id() or "kg-backstop"
+        return loader.backstop_tenures(run_id)

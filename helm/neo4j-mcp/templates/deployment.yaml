@@ -23,36 +23,38 @@ spec:
             - name: http
               containerPort: {{ .Values.server.port }}
           env:
-            # Neo4j server URI — server-level config, always required.
-            - name: NEO4J_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.neo4j.secretName }}
-                  key: neo4j-uri
-            - name: NEO4J_DATABASE
-              value: {{ .Values.neo4j.database | quote }}
+            # HTTP transport (v2 contract): no URI, database or credentials
+            # are configured server-side. Every request from asapbackend
+            # carries Basic Auth, an X-Neo4j-MCP-URI header and the database
+            # in the path (/db/{database}/mcp). allowedUris gates the header.
+            - name: NEO4J_MCP_TRANSPORT_MODE
+              value: "http"
+            - name: NEO4J_MCP_HTTP_ALLOWED_URIS
+              value: {{ .Values.neo4j.allowedUris | quote }}
 
             # Read-only mode — prevents the LLM from issuing write queries.
-            - name: NEO4J_READ_ONLY
+            - name: NEO4J_MCP_READ_ONLY
               value: {{ .Values.neo4j.readOnly | quote }}
 
-            # In HTTP transport mode NEO4J_USERNAME and NEO4J_PASSWORD must NOT
-            # be set here. Credentials are provided per-request via Basic Auth
-            # by the caller (asapbackend reads them from the neo4j secret).
-            - name: NEO4J_TRANSPORT_MODE
-              value: "http"
+            # Only register the tools asapbackend dispatches.
+            - name: NEO4J_MCP_TOOLS
+              value: {{ .Values.neo4j.tools | quote }}
+
+            - name: NEO4J_MCP_REQUEST_TIMEOUT
+              value: {{ .Values.neo4j.requestTimeout | quote }}
 
             # Override the default 127.0.0.1 so the pod is reachable from
             # other pods inside the cluster.
             - name: NEO4J_MCP_HTTP_HOST
               value: "0.0.0.0"
-
             - name: NEO4J_MCP_HTTP_PORT
               value: {{ .Values.server.port | quote }}
 
-            # Allow the readiness/liveness probes to hit /ping without auth.
-            - name: NEO4J_HTTP_ALLOW_UNAUTHENTICATED_PING
+            # Allow the readiness/liveness probes to hit /healthz without auth.
+            - name: NEO4J_MCP_HTTP_ALLOW_UNAUTHENTICATED_PING
               value: "true"
+            - name: NEO4J_MCP_TELEMETRY
+              value: "false"
 
           readinessProbe:
             httpGet:

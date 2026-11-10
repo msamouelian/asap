@@ -5,6 +5,9 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	// Vitest resolves Svelte's server build by default; component tests need
+	// the client (browser) build so `mount` works under jsdom.
+	...(process.env.VITEST ? { resolve: { conditions: ['browser'] } } : {}),
 	test: {
 		// Unit tests live next to the code they cover as *.test.ts.
 		include: ['src/**/*.test.ts'],

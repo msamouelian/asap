@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     neo4j_mcp_url: str = "http://graphdb-mcp:8080"
     neo4j_mcp_auth_user: str = ""
     neo4j_mcp_auth_password: str = ""
+    # neo4j/mcp v2 HTTP contract: the database goes in the request path
+    # (/db/<name>/mcp) and the Bolt URI travels in the X-Neo4j-MCP-URI
+    # header (taken from neo4j_uri below); the server itself holds neither.
+    neo4j_mcp_database: str = "neo4j"
 
     # Direct Neo4j driver access — used ONLY by services/graph_docs.py for
     # document-library writes (archive/delete). LLM-generated Cypher stays on

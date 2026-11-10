@@ -8,11 +8,25 @@
 # Environment variables:
 #   DOCKER_USERNAME   Your Docker Hub username (required)
 #   TAG               Image tag (default: latest)
+#   PLATFORMS         Comma-separated target platforms
+#                     (default: linux/amd64,linux/arm64).
+#
+# Images are multi-arch by default. The k3d node on an Apple-silicon Mac is
+# arm64; amd64-only images run there under emulation, which made every
+# torch/docling step in asapdocworker (and plain Python in the other
+# services) several times slower than native. Kubernetes picks the matching
+# platform from the manifest list automatically, so nothing in the charts
+# changes. Set PLATFORMS=linux/arm64 for a faster local-only build.
+#
+# Requires a builder that can push manifest lists: Docker Desktop with the
+# containerd image store (the default since 4.34) or a docker-container
+# builder (`docker buildx create --driver docker-container --use`).
 
 set -euo pipefail
 
 DOCKER_USERNAME="${DOCKER_USERNAME:-}"
 TAG="${TAG:-latest}"
+PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 
 if [[ -z "$DOCKER_USERNAME" ]]; then
   echo "Error: DOCKER_USERNAME is not set."
@@ -30,13 +44,13 @@ build_and_push() {
   local image="${DOCKER_USERNAME}/${service}:${TAG}"
 
   echo ""
-  echo "▶ Building ${image} ..."
+  echo "▶ Building ${image} for ${PLATFORMS} ..."
   # --provenance=false avoids the OCI attestation manifest that older
   # containerd versions cannot resolve to a platform.
   docker buildx build \
     --file "$dockerfile" \
     --tag "$image" \
-    --platform linux/amd64 \
+    --platform "$PLATFORMS" \
     --provenance=false \
     --push \
     .

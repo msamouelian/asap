@@ -1,17 +1,29 @@
 image:
-  repository: mcp/neo4j
-  tag: "latest"
-  pullPolicy: Always
+  # Official Neo4j MCP server, PINNED to a release tag. The Docker MCP
+  # catalogue image (mcp/neo4j) publishes only "latest"; on 2026-10-28 its
+  # v2.0.0 rebuild renamed every environment variable (NEO4J_* →
+  # NEO4J_MCP_*) and changed the HTTP contract, which crash-looped the pod
+  # the next time it was rescheduled. Bump this tag deliberately and re-test
+  # (see docs: per-request URI header, /db/{database}/mcp path).
+  repository: neo4j/mcp
+  tag: "v2.1.0"
+  pullPolicy: IfNotPresent
 
 neo4j:
-  # Name of the Secret created by the neo4j helm chart.
-  # Must contain keys: neo4j-uri, neo4j-user, neo4j-password.
-  secretName: neo4j-auth
-  # Default Neo4j database to query.
-  database: neo4j
-  # Restrict the MCP server to read-only Cypher queries.
-  # Keep true — the extractor writes directly via the driver, not via MCP.
+  # In HTTP mode (v2+) the server holds NO Neo4j URI, database or credentials.
+  # Each request carries them: Basic Auth + X-Neo4j-MCP-URI header, with the
+  # database in the URL path (/db/<name>/mcp). asapbackend supplies all three
+  # from the neo4j-auth secret / its settings. allowedUris is the only hosts
+  # the URI header may name — anything else is rejected with 400.
+  allowedUris: "graphdb:7687"
+  # Restrict the MCP server to read-only Cypher queries. Keep true — the
+  # extractor/kggenerator/docworker write directly via the driver, not via MCP.
   readOnly: true
+  # Only the tools asapbackend actually dispatches. get-schema and
+  # write-cypher are not even registered.
+  tools: "read-cypher"
+  # Upper bound on one MCP request (max 30m). Bounds runaway LLM queries.
+  requestTimeout: "3m"
 
 server:
   port: 8080

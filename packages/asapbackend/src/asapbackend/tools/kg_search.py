@@ -79,6 +79,102 @@ _MAX_FAMILY = 3           # same-name entities appended after the best match
 _MAX_FAMILY_RELATIONS = 25
 _MAX_SOURCES = 12
 
+# Relationship types rendered first when a dossier is capped: the ones a
+# "who led / succeeded / owned / belonged to X" question needs. Everything
+# else follows alphabetically.
+_PRIORITY_TYPES = [
+    "RICO_HAS_OR_HAD_LEADER", "RICO_IS_OR_WAS_LEADER_OF",
+    "RICO_HAS_SUCCESSOR", "RICO_IS_SUCCESSOR_OF",
+    "RICO_HAS_OR_HAD_CONTROLLER", "RICO_IS_OR_WAS_CONTROLLER_OF",
+    "RICO_HAS_OR_HAD_OWNER", "RICO_IS_OR_WAS_OWNER_OF",
+    "RICO_HAS_OR_HAD_MEMBER", "RICO_IS_OR_WAS_MEMBER_OF",
+    "RICO_HAS_OR_HAD_EMPLOYER", "RICO_IS_OR_WAS_EMPLOYER_OF",
+    "RICO_HAS_OR_HAD_SUBDIVISION", "RICO_IS_OR_WAS_SUBDIVISION_OF",
+]
+
+
+def _norm(name: str) -> str:
+    n = re.sub(r"[^a-z0-9&\s]", " ", (name or "").lower())
+    n = re.sub(r"\s+", " ", n).strip()
+    return n[4:] if n.startswith("the ") else n
+
+
+def _rel_order(r: dict) -> tuple[int, str, str]:
+    t = r.get("t") or ""
+    rank = _PRIORITY_TYPES.index(t) if t in _PRIORITY_TYPES else len(_PRIORITY_TYPES)
+    return (rank, t, r.get("other") or "")
+
+
+def _rank_hits(name: str, hits: list[dict]) -> list[dict]:
+    """Exact (normalised) matches on the display name OR any alternate name
+    come first, then full-text score.
+
+    Full-text scoring favours a short display name that merely starts with
+    the query: "Division of Research" scored "Division of Research Committee
+    on Research" (a side node with 4 relationships) above the real body,
+    whose display name is the long official form and which carries
+    "Division of Research" only as an alias. The alias IS the entity.
+    """
+    target = _norm(name)
+
+    def key(h: dict) -> tuple[int, float]:
+        names = [h.get("name") or "", *(h.get("alt") or [])]
+        exact = any(_norm(n) == target for n in names)
+        return (0 if exact else 1, -float(h.get("score") or 0.0))
+
+    return sorted(hits, key=key)
+
+
+_LEADER_TYPE = "RICO_HAS_OR_HAD_LEADER"
+_YEAR_RE = re.compile(r"(1[5-9]\d\d|20\d\d)")
+
+
+def _succession_table(all_rels: list[dict]) -> list[str]:
+    """A counted, date-ordered table of an entity's leaders.
+
+    Rules in the prompt were not enough: asked for a "timeline with major
+    milestones", the model routed correctly but still dropped between zero
+    and four directors per run, folding them into prose or treating them as
+    minor (2026-11 trials: 4 of 10 runs incomplete). A ready-made table
+    with an explicit count is copied far more reliably than a list of
+    relationship lines is re-assembled. Built from ALL relationships, so it
+    is never affected by the dossier's cap.
+    """
+    seen: set[tuple[str, str]] = set()
+    rows: list[dict] = []
+    for r in all_rels:
+        if r.get("t") != _LEADER_TYPE:
+            continue
+        key = (r.get("other") or "", r.get("date") or "")
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(r)
+    if len(rows) < 2:
+        return []
+
+    def start(r: dict) -> tuple[int, int, str]:
+        m = _YEAR_RE.search(r.get("date") or "")
+        return (0, int(m.group(1)), r.get("other") or "") if m else (1, 0, r.get("other") or "")
+
+    rows.sort(key=start)
+    out = [
+        f"Leadership succession — COMPLETE LIST, {len(rows)} entries, in date "
+        "order. Any roster, history or timeline of this entity must show ALL "
+        f"{len(rows)}, one row each — do not drop, merge or summarise them; "
+        "\"major milestones\" selects among events, never among leaders. "
+        "Give each the role its evidence states (an \"associate\" or "
+        "\"acting\" quote is that role, not director); put undated entries "
+        "in a final \"dates not stated\" row.",
+        "| # | Leader | Dates | Evidence |",
+        "| --- | --- | --- | --- |",
+    ]
+    for i, r in enumerate(rows, 1):
+        quote = (r.get("quote") or "").replace("|", "/").replace("\n", " ")
+        out.append(f"| {i} | {r.get('other')} | {r.get('date') or 'not stated'} | {quote} |")
+    out.append("")
+    return out
+
 
 async def _read(query: str, **params) -> list[dict]:
     raw = await mcp.client.call_tool(
@@ -183,7 +279,14 @@ async def run(name: str) -> str:
                     if _name_agrees(name, [h["name"], *(h.get("alt") or [])])]
             hits.sort(key=lambda h: -h["score"])
     if not hits:
+        log.info("kg-search: name=%r -> no match", name)
         return _NO_MATCH.format(name=name)
+    hits = _rank_hits(name, hits)
+    # Call-time trace, like hybrid-search's: without it, whether the model
+    # used the knowledge graph at all is only visible in the stored
+    # conversation (Lewis/timeline investigation, 2026-11).
+    log.info("kg-search: name=%r -> %r (+%d same-name candidates)",
+             name, hits[0]["name"], len(hits) - 1)
 
     # Name-family view: the entity-resolution pipeline deliberately keeps
     # same-named-but-distinct entities separate (a company vs the holding
@@ -260,18 +363,24 @@ async def _entity_block(hit: dict, top: bool) -> tuple[list[str], list[str]]:
                        f"({twin[0]['u']}) — use this link for the "
                        "authoritative agent record")
 
-    # Outgoing edges cover everything: inverses are materialized.
-    rels = await _read(
+    # Outgoing edges cover everything: inverses are materialized. Fetch them
+    # all (a node has at most a few hundred), then order leadership,
+    # succession, control, ownership, membership and employment first so a
+    # capped dossier never drops the lines a roster question needs.
+    cap = _MAX_RELATIONS if top else _MAX_FAMILY_RELATIONS
+    all_rels = await _read(
         """
         MATCH (n:Inferred {id: $id})-[r]->(m:Inferred)
         RETURN type(r) AS t, r.nature AS nature, r.date AS date,
                r.quote AS quote, r.source_uri AS sources,
                r.confidence AS conf, m.display_name AS other
-        ORDER BY t, other LIMIT $cap
         """,
-        id=hit["id"], cap=_MAX_RELATIONS if top else _MAX_FAMILY_RELATIONS,
+        id=hit["id"],
     )
+    total = len(all_rels)
+    rels = sorted(all_rels, key=_rel_order)[:cap]
     source_uris: list[str] = list(ent.get("source_uri") or [])
+    out.extend(_succession_table(all_rels))
     if rels:
         seen_lines: set[str] = set()
         rel_lines: list[str] = []
@@ -294,6 +403,13 @@ async def _entity_block(hit: dict, top: bool) -> tuple[list[str], list[str]]:
                     source_uris.append(u)
         out.append(f"Relationships ({len(rel_lines)}):")
         out.extend(rel_lines)
+        if total > cap:
+            out.append(
+                f"(showing the first {cap} of {total} relationships — leadership, "
+                "succession, control, ownership, membership and employment are "
+                "listed first; ask about a specific relationship type or "
+                "counterpart, or use Cypher on Inferred nodes for a full count)"
+            )
     else:
         out.append("(no relationships recorded for this entity)")
     return out, source_uris

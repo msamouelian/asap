@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { ExtractorStatus, JobRun, TriggerResponse } from '$lib/api/extractor';
+	import { startPoller, type Poller } from '$lib/polling';
 
 	interface JobApi {
 		trigger: () => Promise<TriggerResponse>;
@@ -16,14 +17,20 @@
 		api: JobApi;
 	} = $props();
 
-	let status     = $state<ExtractorStatus | null>(null);
-	let history    = $state<JobRun[]>([]);
-	let loading    = $state(true);
-	let triggering = $state(false);
-	let error      = $state('');
-	let elapsed    = $state(0); // seconds since current job started (cosmetic counter)
+	let status      = $state<ExtractorStatus | null>(null);
+	let history     = $state<JobRun[]>([]);
+	let loading     = $state(true);
+	let triggering  = $state(false);
+	let error       = $state('');
+	let elapsed     = $state(0); // seconds since current job started (cosmetic counter)
+	// When the status shown was last confirmed with the server, and whether
+	// the most recent attempt failed. A long job in a background tab can sit
+	// on a stale "running" for minutes; this makes staleness visible instead
+	// of silent.
+	let lastChecked = $state<Date | null>(null);
+	let pollError   = $state('');
 
-	let pollTimer:    ReturnType<typeof setInterval> | null = null;
+	let poller:       Poller | null = null;
 	let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
 	const POLL_INTERVAL_MS = 30_000;
@@ -37,13 +44,24 @@
 	});
 
 	function clearTimers() {
-		if (pollTimer)    { clearInterval(pollTimer);    pollTimer    = null; }
+		poller?.stop();
+		poller = null;
 		if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+	}
+
+	type Snapshot = [ExtractorStatus, JobRun[]];
+	const fetchBoth = (): Promise<Snapshot> => Promise.all([api.status(), api.history()]);
+
+	function apply([s, h]: Snapshot, at: Date) {
+		status = s;
+		history = h;
+		lastChecked = at;
+		pollError = '';
 	}
 
 	async function refresh() {
 		try {
-			[status, history] = await Promise.all([api.status(), api.history()]);
+			apply(await fetchBoth(), new Date());
 			error = '';
 		} catch (e) {
 			error = e instanceof Error ? e.message : `Failed to load ${title} status.`;
@@ -53,15 +71,22 @@
 
 		if (status?.is_running) {
 			startElapsedCounter();
-			if (!pollTimer) {
-				pollTimer = setInterval(async () => {
-					try {
-						[status, history] = await Promise.all([api.status(), api.history()]);
-					} catch {
-						// silent — keep polling
-					}
-					if (!status?.is_running) clearTimers();
-				}, POLL_INTERVAL_MS);
+			if (!poller) {
+				// Ticks every 30 s AND refreshes the moment the tab becomes
+				// visible or focused again, so a job that finished while the
+				// tab was in the background shows as finished right away.
+				poller = startPoller<Snapshot>({
+					fetch: fetchBoth,
+					intervalMs: POLL_INTERVAL_MS,
+					isActive: ([s]) => s.is_running,
+					onUpdate: (snap, at) => {
+						apply(snap, at);
+						if (!snap[0].is_running) clearTimers();
+					},
+					onError: (e) => {
+						pollError = e instanceof Error ? e.message : 'status check failed';
+					},
+				});
 			}
 		} else {
 			clearTimers();
@@ -102,6 +127,10 @@
 		if (h > 0) return `${h}h ${m}m`;
 		if (m > 0) return `${m}m ${s}s`;
 		return `${s}s`;
+	}
+
+	function fmtTime(d: Date | null): string {
+		return d ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : '—';
 	}
 
 	function fmtDate(iso: string | null): string {
@@ -203,6 +232,12 @@
 
 			{#if status?.is_running}
 				<p class="text-xs text-muted">{runningNote}</p>
+				<p class="text-xs text-muted-light" data-testid="last-checked">
+					Last checked {fmtTime(lastChecked)}
+					{#if pollError}
+						<span class="text-amber-700"> · could not refresh ({pollError}); retrying</span>
+					{/if}
+				</p>
 			{/if}
 
 			{#if error}

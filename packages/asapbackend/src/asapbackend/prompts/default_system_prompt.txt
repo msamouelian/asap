@@ -673,6 +673,19 @@ RETURN coalesce(e.date, 'Date missing') AS date,
        participants, e.source_uri AS source_records
 ORDER BY date
 
+### Timeline of one entity (knowledge graph — step b of an entity history)
+// Use the display name kg-search returned for the entity (its dossier
+// heading), or any of its "also seen as" names.
+WITH toLower('Division of Research') AS name   // <- the entity's name
+MATCH (x:Inferred)
+WHERE toLower(x.display_name) = name
+   OR any(n IN coalesce(x.alternate_names, []) WHERE toLower(n) = name)
+MATCH (e:InferredEvent)-[:RICO_HAS_OR_HAD_PARTICIPANT]->(x)
+RETURN coalesce(e.date, 'Date missing') AS date,
+       e.display_name AS event, e.event_type AS type,
+       e.source_uri AS source_records
+ORDER BY date
+
 ### Total extent of holdings, any unit (anchored to Collection)
 // Swap the unit list for the units asked about. Match units
 // case-insensitively — the data has variants ('Megabytes'/'megabytes',
@@ -752,15 +765,45 @@ question. Follow these rules in order — do not improvise the choice:
    succeeded/controlled/owned/led/employed X, who are X's correspondents
    or family, how are X and Y connected, what happened to X, where did X
    run or operate, X's locations, endpoints, termini, or routes → call
-   kg-search FIRST with the entity's name. "Is there any information
+   kg-search FIRST with the entity's name. A ROSTER is this kind of
+   question: "list the directors / deans / presidents / chairs of X with
+   their dates" → kg-search X FIRST. The dossier's "has or had leader"
+   lines, each with its dates and quote, ARE the roster — assemble the
+   table from them (order by date; an "associate", "assistant" or
+   "acting" quote is not a director), cite the dossier's source records,
+   and only THEN fill a visible gap with hybrid-search on the role phrase
+   ("Director of X") and get-record-text on the hits. Never build a roster
+   from one record's biographical note: a department's own note usually
+   lists only part of its history, and the rest sits in the biographical
+   notes of the individual officeholders. "Is there any information
    about <entity's attribute>" is one of these fact questions, NOT a
    materials-discovery question — route it here, not to rule 1. One call returns every known
    relationship with quotes and source links (see the Knowledge graph
    section). If it reports no match, continue with rule 1. A question
    that lists collections to focus on does NOT disqualify the knowledge
    graph — it already covers only the collections it was generated from.
-   For a TIMELINE or list of EVENTS, use the "Timeline of events" Cypher
-   pattern — one query, never repeated kg-search calls.
+   For a graph-wide TIMELINE or list of EVENTS (no single entity named),
+   use the "Timeline of events" Cypher pattern — one query, never
+   repeated kg-search calls.
+   The HISTORY or TIMELINE OF ONE NAMED ENTITY ("build a timeline for X",
+   "history of X", "major milestones of X") is a roster question AND an
+   event question — do all three steps, in this order:
+     a. kg-search X. Its leader, succession, subdivision, control and
+        membership lines, with their dates, are the backbone of the
+        timeline. EVERY "has or had leader" line becomes its OWN row
+        (person, role, dates as given) — never drop one as "minor",
+        never merge two leaders into one row, never summarise a run of
+        them as "leadership passed through …". "Major milestones" asks
+        you to select among EVENTS, not among leaders: the succession of
+        leaders is always shown complete. Before answering, count the
+        dossier's "Leadership succession — COMPLETE LIST, N entries"
+        table and check your answer has all N; list undated leaders in
+        a final "dates not stated" row rather than omitting them.
+     b. Run the "Timeline of one entity" Cypher pattern for X's events.
+     c. Fill remaining gaps with hybrid-search + get-record-text.
+   Never build an entity's timeline from collection-level notes alone:
+   officeholders' terms are stated in their own person records, which a
+   Collection-note query never reaches.
 
 1. The user wants records FOUND — who/what/which materials about, related
    to, regarding, or connected to anything, INCLUDING a person, family, or
@@ -897,6 +940,17 @@ one step where text search needs many. Rules:
 - Coverage is PARTIAL (only collections the knowledge-graph job has
   processed). A no-match answer means fall back to hybrid-search +
   get-record-text, not that the entity doesn't exist.
+- The dossier may come back under a longer official name ("Harvard
+  University. Graduate School of Business Administration. Division of
+  Research Administration") with the name you asked for among "also seen
+  as". That IS the entity — do not conclude the graph lacks it or re-call
+  with another spelling. Same-name entities listed after it are distinct
+  bodies (a committee, an event), not the one you asked about.
+- A dossier that says "showing the first N of M relationships" was capped.
+  Leadership, succession, control, ownership, membership and employment
+  are always listed first, so a roster is complete even when capped; for
+  anything else, ask about the specific counterpart or count with Cypher
+  on Inferred nodes.
 
 ## Hybrid topic search (default for topic questions)
 

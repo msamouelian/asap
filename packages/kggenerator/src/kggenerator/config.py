@@ -85,5 +85,28 @@ PILOT_COLLECTION_EAD_IDS: list[str] = (
         "bak00357",  # Deed books for Western Rail Road Corporation
         "bak00367",  # Boston and Providence Railroad Corporation records
         "bak02171",  # Business History Foundation, Inc. Records
+        "bak00975",
+        "bak01049",
+        "bak00272",
+        "bak01778",
+        "bak00142",
+        "bak01518",
+        "bak01062",
+        "bak00026",
+        "bak00204",
+        "bak01439",
+        "bak00155",
+        "bak00846",
+        "bak00136",
+        "bak00956",
+        "bak02004",
+        "bak02001",
+        "bak01441",
+        "bak01099",
+        "bak01771",
+        "bak01170",
+        "bak01162",
+        "bak01675",
+        "bak00691",
     ]
 )

@@ -142,6 +142,16 @@ def cmd_load(args: argparse.Namespace) -> None:
                 ", ".join(f"{k}={v}" for k, v in stats.items()))
 
 
+def cmd_backstop(args: argparse.Namespace) -> None:
+    """Pattern-based leader relationships from biographical notes, applied to
+    the current graph without a rebuild (also runs inside every `load`)."""
+    from kggenerator.load import run_backstop_only
+
+    stats = run_backstop_only()
+    logger.info("=== Tenure backstop complete: %s ===",
+                ", ".join(f"{k}={v}" for k, v in stats.items()))
+
+
 def cmd_all(args: argparse.Namespace) -> None:
     """Full pipeline for the Kubernetes Job: extract → resolve → load.
 
@@ -181,6 +191,10 @@ def main() -> None:
     p_load = sub.add_parser(
         "load", help="load the latest resolution into Neo4j as :Inferred nodes")
     p_load.set_defaults(func=cmd_load)
+
+    p_backstop = sub.add_parser(
+        "backstop", help="add pattern-matched leader tenures to the current graph (no rebuild)")
+    p_backstop.set_defaults(func=cmd_backstop)
 
     p_all = sub.add_parser(
         "all", help="extract (incremental) + resolve + load — the Job entrypoint")

@@ -29,7 +29,7 @@ import requests
 from neo4j import GraphDatabase
 
 from asapdocworker import config
-from asapdocworker.processing import SUPPORTED_SUFFIXES, convert_and_chunk
+from asapdocworker.processing import SUPPORTED_SUFFIXES, convert_and_chunk, init_worker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -224,7 +224,10 @@ def main() -> None:
         # Progress granularity: docling exposes no per-page hooks, so the
         # finest visible stages are per-document conversion and per-batch
         # embedding — current_document narrates both.
-        with ProcessPoolExecutor(max_workers=config.CONVERT_WORKERS) as pool:
+        pool_size = max(1, min(config.CONVERT_WORKERS, len(files)))
+        with ProcessPoolExecutor(
+            max_workers=pool_size, initializer=init_worker, initargs=(pool_size,),
+        ) as pool:
             results = iter(pool.map(convert_and_chunk, files))
             for path in files:
                 rel = str(path.relative_to(staging))

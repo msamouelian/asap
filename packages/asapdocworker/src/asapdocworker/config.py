@@ -39,3 +39,19 @@ BIG_TABLE_CELLS: int = int(os.environ.get("BIG_TABLE_CELLS", "2000"))
 # Parallel docling conversions. Document parsing is CPU-bound; keep modest on
 # the shared dev node. On a GPU cluster docling accelerates automatically.
 CONVERT_WORKERS: int = int(os.environ.get("CONVERT_WORKERS", "2"))
+
+# OCR detector input cap, in pixels on the longest side. RapidOCR's default
+# detector setting (limit_type "min", 736) ENLARGES every image until its
+# short side is 736 px. Docling OCRs each bitmap region of a scanned page
+# separately, and a thin region — a 39 x 1508 px column rule in "Alumni
+# Bulletin - 1925" — became a ~736 x 28,000 px detector input: resident
+# memory jumped from 1.4 GiB to 7 GiB for zero lines of text, and the worker
+# was OOM-killed at 8 GiB (2026-11-20). Capping the LONGEST side instead
+# bounds the detector input for any region shape; docling already renders
+# OCR regions at 3x, so real text is large enough without the enlargement
+# (98.6% word-level agreement with the uncapped output on the same pages).
+OCR_DET_MAX_SIDE: int = int(os.environ.get("OCR_DET_MAX_SIDE", "2000"))
+
+# Pages buffered between docling's pipeline stages (docling default: 100,
+# which holds a whole scanned document's rendered pages in memory at once).
+PIPELINE_QUEUE_PAGES: int = int(os.environ.get("PIPELINE_QUEUE_PAGES", "4"))

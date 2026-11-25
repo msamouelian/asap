@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import io
 import logging
+import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -49,11 +51,84 @@ _converter = None
 _chunker = None
 
 
+def cpu_quota(cgroup_file: str = "/sys/fs/cgroup/cpu.max") -> int:
+    """CPUs this container may actually use (cgroup v2 quota), else the host
+    count. torch sizes its thread pool from the HOST (12 on the dev node)
+    while the pod is limited to 3, so without this every model step runs 12
+    threads on 3 CPUs."""
+    try:
+        quota, period = Path(cgroup_file).read_text().split()[:2]
+        if quota != "max":
+            return max(1, math.ceil(int(quota) / int(period)))
+    except (OSError, ValueError):
+        pass
+    return os.cpu_count() or 1
+
+
+# Number of conversion processes actually running for this job (set by
+# init_worker in each pool process). A one-file upload runs one process and
+# should get the whole CPU quota, not a 1/CONVERT_WORKERS share of it.
+_pool_size: int | None = None
+
+
+def init_worker(pool_size: int) -> None:
+    """ProcessPoolExecutor initializer: record how many workers share the CPUs."""
+    global _pool_size
+    _pool_size = pool_size
+
+
+def threads_per_worker() -> int:
+    """Each conversion worker process gets an equal share of the quota."""
+    return max(1, cpu_quota() // max(1, _pool_size or config.CONVERT_WORKERS))
+
+
+def rapidocr_params() -> dict:
+    """Bound the OCR detector's input size — see config.OCR_DET_MAX_SIDE."""
+    return {"Det.limit_type": "max", "Det.limit_side_len": config.OCR_DET_MAX_SIDE}
+
+
+def pdf_pipeline_options():
+    """Docling PDF options with an EXPLICIT OCR engine.
+
+    Docling's automatic OCR choice lands on RapidOCR with the torch backend
+    in this image anyway, but the automatic path builds its own engine
+    options and discards any RapidOCR parameters, so the detector cap can
+    only be applied by naming the engine.
+    """
+    from docling.datamodel.accelerator_options import AcceleratorOptions
+    from docling.datamodel.pipeline_options import (
+        RapidOcrOptions,
+        ThreadedPdfPipelineOptions,
+    )
+
+    opts = ThreadedPdfPipelineOptions()
+    # Docling's stages run as threads joined by queues. With the default
+    # queue of 100 the cheap first stage renders EVERY page of a document
+    # up front and the rendered pages wait in memory for OCR, the slow
+    # stage; layout batches of 4 large page images run on top of that.
+    # Small queues and single-page batches keep only a few pages in flight:
+    # same text, same run time (OCR is the bottleneck either way), lower
+    # peak — measured on the 69-page scanned bulletin.
+    opts.queue_max_size = config.PIPELINE_QUEUE_PAGES
+    opts.ocr_batch_size = opts.layout_batch_size = opts.table_batch_size = 1
+    opts.accelerator_options = AcceleratorOptions(num_threads=threads_per_worker())
+    opts.ocr_options = RapidOcrOptions(
+        backend="torch", lang=[], rapidocr_params=rapidocr_params(),
+    )
+    return opts
+
+
 def _get_converter():
     global _converter
     if _converter is None:
-        from docling.document_converter import DocumentConverter
-        _converter = DocumentConverter()
+        import torch
+        from docling.datamodel.base_models import InputFormat
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+
+        torch.set_num_threads(threads_per_worker())
+        _converter = DocumentConverter(format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_pipeline_options()),
+        })
     return _converter
 
 
